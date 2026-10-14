@@ -133,6 +133,12 @@ class Screenshots {
         shoot("trading-total-3x2", DpSize(234.dp, 158.dp)) { TradingTotalContent(data()) }
     }
 
+    /** His phone's real sizes (measured from his home screen): taller than the 5×2 / 5×3 defaults. */
+    @Test fun tradingAtHisSizes() = runTest {
+        shoot("trading-total-his-phone", DpSize(394.dp, 190.dp)) { TradingTotalContent(data()) }
+        shoot("trading-business-his-phone", DpSize(394.dp, 295.dp)) { TradingBusinessContent(data()) }
+    }
+
     @Test fun tradingByBusiness() = runTest {
         shoot("trading-business-fresh", byBusiness) { TradingBusinessContent(data()) }
         shoot("trading-business-stale", byBusiness) { TradingBusinessContent(data(ageMin = 38, stale = true)) }

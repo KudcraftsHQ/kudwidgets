@@ -116,7 +116,7 @@ private fun chartImage(
     yesterdayLabel: Boolean = true,
     clipCorners: Boolean = false,
 ): ImageProvider {
-    val d = context.resources.displayMetrics.density
+    val d = chartScale(context)
     val bmp = RunningChart.draw(
         RunningChart.Spec(
             widthPx = (size.width.value * d).toInt(),
@@ -137,19 +137,22 @@ private fun chartImage(
 // ── Trading · total (5×2) ─────────────────────────────────────────────────────────────────────────
 
 class TradingTotalWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = heightLadder(72.dp, 252.dp, STEP)
+
+    private companion object { val STEP = 20.dp }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = TradingRepo.display(context, options.period)
-        provideContent { TradingTotalContent(display, options) }
+        val width = reportedWidth(context, id)
+        provideContent { Sized(width, STEP) { TradingTotalContent(display, options) } }
     }
 }
 
 @Composable
 fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val (time, timeColor) = headerTime(display)
     val defaultUrl = options.filter?.let(TradingRepo::businessUrl) ?: TradingRepo.DASHBOARD
     val tapUrl = options.tapUrl ?: defaultUrl
@@ -209,19 +212,22 @@ fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOption
 // ── Trading · by business (5×3) ───────────────────────────────────────────────────────────────────
 
 class TradingBusinessWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = heightLadder(120.dp, 372.dp, STEP)
+
+    private companion object { val STEP = 36.dp }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = TradingRepo.display(context, options.period)
-        provideContent { TradingBusinessContent(display, options) }
+        val width = reportedWidth(context, id)
+        provideContent { Sized(width, STEP) { TradingBusinessContent(display, options) } }
     }
 }
 
 @Composable
 fun TradingBusinessContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val (time, timeColor) = headerTime(display)
     val headerUrl = options.tapUrl ?: TradingRepo.DASHBOARD
 
@@ -264,13 +270,14 @@ fun TradingBusinessContent(display: Display<TradingSnapshot>, options: WidgetOpt
                 }
             }
             val figure = TradingFigure.of(b.kpis, b.series, yesterdayBySlug[b.slug]?.series, display.fetchedAt, options.period, snap.today.dates.from)
-            BusinessBand(context, DpSize(size.width, bandH - if (i > 0) 1.dp else 0.dp), b.name, b.slug, figure, dim)
+            // The band fills its share by weight (the real height); bandH is the estimate its chart is drawn for.
+            BusinessBand(context, DpSize(size.width, bandH - if (i > 0) 1.dp else 0.dp), b.name, b.slug, figure, dim, GlanceModifier.defaultWeight())
         }
     }
 }
 
 @Composable
-private fun BusinessBand(context: Context, band: DpSize, name: String, slug: String, figure: TradingFigure, dim: Boolean) {
+private fun BusinessBand(context: Context, band: DpSize, name: String, slug: String, figure: TradingFigure, dim: Boolean, modifier: GlanceModifier) {
     val showStats = band.height >= 84.dp && band.width >= 250.dp
     val showDelta = band.height >= 64.dp
     val headline = Format.short(figure.kpis.revenue)
@@ -280,7 +287,7 @@ private fun BusinessBand(context: Context, band: DpSize, name: String, slug: Str
         if (showStats) add(RectF(w - 16f - 168f, h - 10f - 38f, w - 6f, h - 2f))
     }
     Box(
-        GlanceModifier.fillMaxWidth().height(band.height).clickable(openAction(context, TradingRepo.businessUrl(slug))),
+        modifier.fillMaxWidth().clickable(openAction(context, TradingRepo.businessUrl(slug))),
     ) {
         Image(
             // No "yesterday" label in a band: it would crowd the stats, and the total widget names the dashes.

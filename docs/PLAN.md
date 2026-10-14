@@ -182,6 +182,12 @@ Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataS
   window (the month's later days stay empty); an unknown filter (a business or product that went away) falls back
   to all, never to an empty widget.
 
+- **Sizing doesn't trust the launcher** (found on Hammas's phone, 2026-10-14: it reports widgets ~60% of their real
+  height, so SizeMode.Exact stretched the bitmaps and hid the stats). Each widget offers a ladder of heights
+  (`SizeMode.Responsive`, narrow key width); on Android 12+ the system picks the rung by the widget's real measured
+  size. Width comes from the launcher (its widths were right). Bitmaps draw half a rung taller than the key, at most
+  2 px/dp, and `SizingTest` keeps every ladder inside Android's per-update bitmap budget on a 1080×2400 phone.
+
 ## Rules for whoever builds this
 
 - hammas-dev had no JDK or Android SDK; they are now installed user-space (JDK 21 at `~/.local/share/jdk/current`,
