@@ -43,12 +43,12 @@ import com.kudcrafts.widgets.store.WidgetOptions
 import com.kudcrafts.widgets.ui.Palette
 import com.kudcrafts.widgets.work.Refresher
 
-private fun density(context: Context) = context.resources.displayMetrics.density
+private fun density(context: Context) = chartScale(context)
 
 @Composable
 private fun NonData(display: Display<*>, title: String, qualifier: String?, url: String) {
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val (time, _) = headerTime(display)
     Column(
         GlanceModifier.fillMaxSize().surface().padding(horizontal = WidgetPadH, vertical = WidgetPadV)
@@ -62,11 +62,14 @@ private fun NonData(display: Display<*>, title: String, qualifier: String?, url:
 // ── Board · today (5×1) ───────────────────────────────────────────────────────────────────────────
 
 class BoardTodayWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
+
+    private companion object { val STEP = 16.dp }
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context, options.period)
-        provideContent { BoardTodayContent(display, options) }
+        val width = reportedWidth(context, id)
+        provideContent { Sized(width, STEP) { BoardTodayContent(display, options) } }
     }
 }
 
@@ -75,7 +78,7 @@ fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = 
     val tapUrl = options.tapUrl ?: BoardRepo.DASHBOARD
     if (display !is Display.Data) return NonData(display, "Board", options.period.label, tapUrl)
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val o = display.data
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
@@ -119,11 +122,14 @@ fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = 
 // ── Board · funnel (3×1) ──────────────────────────────────────────────────────────────────────────
 
 class FunnelWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
+
+    private companion object { val STEP = 16.dp }
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context, options.period)
-        provideContent { FunnelContent(display, options) }
+        val width = reportedWidth(context, id)
+        provideContent { Sized(width, STEP) { FunnelContent(display, options) } }
     }
 }
 
@@ -133,7 +139,7 @@ fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
     val qualifier = options.period.label.takeIf { options.period != com.kudcrafts.widgets.store.Period.Today }
     if (display !is Display.Data) return NonData(display, "Funnel", qualifier, tapUrl)
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val f = BoardMath.funnel(display.data, options.filter)
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
@@ -163,11 +169,14 @@ fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
 // ── OpenAI credit (2×1) ───────────────────────────────────────────────────────────────────────────
 
 class OpenAiWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
+
+    private companion object { val STEP = 16.dp }
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context)
-        provideContent { OpenAiContent(display, options) }
+        val width = reportedWidth(context, id)
+        provideContent { Sized(width, STEP) { OpenAiContent(display, options) } }
     }
 }
 
@@ -175,7 +184,7 @@ class OpenAiWidget : GlanceAppWidget() {
 fun OpenAiContent(display: Display<BoardOverview>, options: WidgetOptions = WidgetOptions()) {
     if (display !is Display.Data) return NonData(display, "OpenAI", null, BoardRepo.DASHBOARD)
     val context = LocalContext.current
-    val size = LocalSize.current
+    val size = widgetSize()
     val b = BoardMath.openAi(display.data)
     val (time, timeColor) = headerTime(display)
     val warn = b == null || b.needsAttention || display.stale || display.error != null
