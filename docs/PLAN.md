@@ -131,6 +131,33 @@ Copy `kc-release.yaml` (as `.github/workflows/release.yaml`):
 Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataStore, AndroidX Browser
 (Custom Tabs), minSdk 26, target/compile 36.
 
+## As built (deviations and specifics, with why)
+
+- **Release workflow** is `.github/workflows/release.yaml` (phase 1). Tags `v*`; PRs also upload the debug APK and
+  the widget screenshots as artifacts.
+- **"vs yesterday at the same time"** = today's running total against yesterday's running total at the fetch time,
+  with yesterday's current hour counted pro rata (10:30 → hours 0–9 plus half of hour 10). Hour buckets are all the
+  server gives; comparing to whole hours would swing the number at every :00. No line when yesterday had nothing by
+  then. Computed at fetch time, not draw time, so a stale widget doesn't drift.
+- **ROAS** on widgets is one decimal, truncated (`5.6`), like the mock; trading-bar's popover keeps `5,60×`.
+- **Stale** = older than 30 minutes (two missed refreshes). **Source error** keeps the last numbers and shows their
+  age in the header in the down colour. 401/403 flips to "Sign in" without touching the cached numbers.
+- **Text over charts**: the chart bitmap erases (feathered, ~85%) its own ink under the headline block and the
+  stats block, so no curve can run through a number. Bands in the by-business widget have no "yesterday" label
+  (it crowded the stats); the total widget names the dashes.
+- **Tap** goes through a no-UI trampoline that queues a refresh and then opens the dashboard
+  (`/` for the total, `/<slug>/overview` for a band). Signed-out widgets open the app's sign-in.
+- **Screenshots** come from Robolectric (native graphics) rendering the real Glance RemoteViews to PNG
+  (`app/build/screenshots`); hammas-dev has no KVM, so no emulator. Fixtures use made-up businesses (the repo is
+  public).
+- **Trading sign-in** sends `client_id=kud-widgets` on both the authorize URL and the token exchange, plus
+  `device_name` (manufacturer + model) on the authorize URL; the server names the key "Kud Widgets · <device>".
+  The redirect lands on `MainActivity` (singleTask), which closes the Custom Tab. The PKCE verifier is kept
+  encrypted across the round trip, since the process can die while the tab is open. Sign-out revokes the key on
+  the server (`POST /api/cli/auth/revoke`, allowed for read-only keys) before forgetting it. Contract:
+  KudcraftsHQ/trading-backoffice#630. 401 and 403 both flip a widget to "Sign in" (403 on a GET means the
+  key can't see reports; `read_only_key` would be our bug, since the app never writes).
+
 ## Rules for whoever builds this
 
 - hammas-dev had no JDK or Android SDK; they are now installed user-space (JDK 21 at `~/.local/share/jdk/current`,

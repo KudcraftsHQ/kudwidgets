@@ -52,7 +52,7 @@ android {
     }
     buildFeatures { compose = true }
     lint { checkReleaseBuilds = false }
-    testOptions { unitTests.isReturnDefaultValues = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
@@ -68,6 +68,14 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("androidx.browser:browser:1.9.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("androidx.test:core:1.7.0")
 }

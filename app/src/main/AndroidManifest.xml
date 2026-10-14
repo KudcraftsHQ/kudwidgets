@@ -2,33 +2,71 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Custom Tabs: find a browser that supports them (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
 
     <application
+        android:name=".App"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.KudWidgets">
 
+        <!-- singleTask: the OAuth redirect comes back to the same instance and closes the Custom Tab. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- kudtrading OAuth redirect: com.kudcrafts.widgets:/oauth/callback (RFC 8252 private-use scheme). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.kudcrafts.widgets" />
+            </intent-filter>
         </activity>
 
+        <activity
+            android:name=".OpenActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <receiver
-            android:name=".widget.PlaceholderWidgetReceiver"
+            android:name=".widget.TradingTotalReceiver"
             android:exported="true"
-            android:label="@string/placeholder_widget_label">
+            android:label="@string/trading_total_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/placeholder_widget_info" />
+                android:resource="@xml/trading_total_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TradingBusinessReceiver"
+            android:exported="true"
+            android:label="@string/trading_business_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/trading_business_info" />
         </receiver>
     </application>
 </manifest>

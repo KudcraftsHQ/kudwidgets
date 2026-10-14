@@ -1,0 +1,28 @@
+{
+  "preset": "today",
+  "dates": { "from": "2026-10-14", "to": "2026-10-14", "timezone": "Asia/Jakarta" },
+  "bucket": "hour",
+  "businesses": [
+    { "slug": "atlas", "name": "Atlas Parts",
+      "kpis": { "revenue": 3300000, "orders": 41, "excludedOrders": 2, "adSpend": 555000, "roas": 5.945945, "cogs": 1500000, "cogsMissingItems": 0, "contribution": 1245000, "contributionPct": 37.7 },
+      "series": [
+        { "t": "2026-10-14T08:00", "orders": 10, "revenue": 800000, "cogs": 300000 },
+        { "t": "2026-10-14T09:00", "orders": 15, "revenue": 1300000, "cogs": 600000 },
+        { "t": "2026-10-14T10:00", "orders": 16, "revenue": 1200000, "cogs": 600000 }
+      ] },
+    { "slug": "birch", "name": "Birch Flowers",
+      "kpis": { "revenue": 2100000, "orders": 23, "excludedOrders": 0, "adSpend": 410000, "roas": null, "cogs": 900000, "cogsMissingItems": 3, "contribution": 790000, "contributionPct": null },
+      "series": [
+        { "t": "2026-10-14T09:00", "orders": 13, "revenue": 1100000, "cogs": 500000 },
+        { "t": "2026-10-14T10:00", "orders": 10, "revenue": 1000000, "cogs": 400000 }
+      ] }
+  ],
+  "combined": {
+    "kpis": { "revenue": 5400000, "orders": 64, "excludedOrders": 2, "adSpend": 965000, "roas": 5.6, "cogs": 2400000, "cogsMissingItems": 3, "contribution": 2035000, "contributionPct": 37.6, "somethingNew": 1 },
+    "series": [
+      { "t": "2026-10-14T08:00", "orders": 10, "revenue": 800000, "cogs": 300000 },
+      { "t": "2026-10-14T09:00", "orders": 28, "revenue": 2400000, "cogs": 1100000 },
+      { "t": "2026-10-14T10:00", "orders": 26, "revenue": 2200000, "cogs": 1000000 }
+    ]
+  }
+}
