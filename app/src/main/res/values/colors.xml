@@ -1,0 +1,10 @@
+<resources>
+    <!-- Night theme, see docs/PLAN.md › Design. Never pure white. -->
+    <color name="kw_surface">#FF121013</color>
+    <color name="kw_cream">#FFFEF8E8</color>
+    <color name="kw_cream_dim">#94FEF8E8</color>
+    <color name="kw_up">#FF79D3A0</color>
+    <color name="kw_down_text">#FFF0A58C</color>
+    <color name="kw_down_fill">#FFC8674B</color>
+    <color name="kw_warn_surface">#FF1D1413</color>
+</resources>

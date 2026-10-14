@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Kud Widgets</string>
+    <string name="placeholder_widget_label">Kud Widgets</string>
+    <string name="placeholder_widget_description">Placeholder while the Trading and Board widgets are built</string>
+</resources>

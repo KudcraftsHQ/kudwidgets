@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Opaque night surface with the prayer-times widget's corner radius; used below API 31 where
+     Glance's cornerRadius() has no effect. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/kw_surface" />
+    <corners android:radius="22dp" />
+</shape>

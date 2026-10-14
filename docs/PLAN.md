@@ -8,7 +8,9 @@ This file is the contract between the threads building it. Keep it current; reco
 
 ## Decisions (Hammas, 2026-10-14)
 
-- Name **Kud Widgets**, app id `com.kudcrafts.widgets`, repo `KudcraftsHQ/kud-widgets`, **public**.
+- Name **Kud Widgets**, app id `com.kudcrafts.widgets`, repo `KudcraftsHQ/kudwidgets`, **public**.
+  (Repo renamed from `kud-widgets` to `kudwidgets` on 2026-10-14 at Hammas's request; the old URL redirects.
+  The local checkout stays `~/Projects/kud-widgets`. The OAuth client id `kud-widgets` is a server contract and is unchanged.)
 - Look follows his home screen: kudmascot night theme (see Design). No green highlight pills anywhere.
 - Trading ships as **two widgets**: merged total, and split per business.
 - **Sign-in is OAuth for both sources.** No pasted keys, ever.
@@ -103,18 +105,18 @@ Tokens are stored encrypted (Android Keystore). A 401/403 flips the widget to "S
 
 ## Release
 
-Copy `kc-release.yaml`:
+Copy `kc-release.yaml` (as `.github/workflows/release.yaml`):
 
 - PRs and manual runs: unit tests + debug APK artifact.
 - Tags `v<major>.<minor>.<patch>`: `versionName` from the tag, `versionCode = major*10000 + minor*100 + patch`;
   signed with `KC_KEYSTORE_BASE64`, `KC_KEYSTORE_PASSWORD`, `KC_KEY_ALIAS`, `KC_KEY_PASSWORD`; refuse to publish
-  unsigned; `apksigner verify`; upload `kud-widgets-<tag>.apk` + `SHA256SUMS` to the GitHub Release.
+  unsigned; `apksigner verify`; upload `kudwidgets-<tag>.apk` + `SHA256SUMS` to the GitHub Release.
 - Tags containing `-` are prereleases (marked pre-release; Obtainium skips them).
 - Same signing key as ntfy Kudcrafts (the later push nudge relies on a signature permission between the two
   apps). Keystore: `~/Projects/secrets/ntfy-kudcrafts/release.jks`, store password in `password.txt` there,
   key password = store password; find the alias with `keytool -list`. Set the four repo secrets with
   `gh secret set`. Never commit or print any of it.
-- Obtainium: add `https://github.com/KudcraftsHQ/kud-widgets`.
+- Obtainium: add `https://github.com/KudcraftsHQ/kudwidgets`.
 
 ## Build order
 
@@ -131,7 +133,8 @@ Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataS
 
 ## Rules for whoever builds this
 
-- hammas-dev has no JDK or Android SDK. Install them user-space (JDK 21 + Android cmdline-tools under
+- hammas-dev had no JDK or Android SDK; they are now installed user-space (JDK 21 at `~/.local/share/jdk/current`,
+  SDK at `~/.local/share/android-sdk`; see README › Building). Originally: install them user-space (JDK 21 + Android cmdline-tools under
   `~/.local/share/`), no sudo. Gradle is heavy on a 16 GB box: one build at a time, no parallel daemons.
 - Scratch files go under `$TMPDIR`, never `/tmp`.
 - Unit-test the parts that can be wrong: overview parsing, formatting, delta vs yesterday at the same hour,
