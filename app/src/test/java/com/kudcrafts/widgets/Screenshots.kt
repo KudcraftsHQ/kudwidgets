@@ -98,12 +98,16 @@ class Screenshots {
     }
 
     @OptIn(ExperimentalGlanceRemoteViewsApi::class)
-    private suspend fun shoot(name: String, size: DpSize, body: @androidx.compose.runtime.Composable () -> Unit) {
+    /**
+     * Render for `size` (what the launcher reports) and lay out in `box` (what it really gives the widget).
+     * They differ on launchers that misreport, like Hammas's, which reports ~55% of the real height.
+     */
+    private suspend fun shoot(name: String, size: DpSize, box: DpSize = size, body: @androidx.compose.runtime.Composable () -> Unit) {
         val rv = Fixed(body).compose(ctx, size = size)
         val d = ctx.resources.displayMetrics.density
         val pad = (14 * d).toInt()
-        val w = (size.width.value * d).toInt()
-        val h = (size.height.value * d).toInt()
+        val w = (box.width.value * d).toInt()
+        val h = (box.height.value * d).toInt()
         val host = FrameLayout(ctx)
         val view: View = rv.apply(ctx, host)
         host.addView(view, FrameLayout.LayoutParams(w, h))
@@ -133,10 +137,27 @@ class Screenshots {
         shoot("trading-total-3x2", DpSize(234.dp, 158.dp)) { TradingTotalContent(data()) }
     }
 
-    /** His phone's real sizes (measured from his home screen): taller than the 5×2 / 5×3 defaults. */
-    @Test fun tradingAtHisSizes() = runTest {
-        shoot("trading-total-his-phone", DpSize(394.dp, 190.dp)) { TradingTotalContent(data()) }
-        shoot("trading-business-his-phone", DpSize(394.dp, 295.dp)) { TradingBusinessContent(data()) }
+    /**
+     * His phone: the real boxes (measured from his home screen, 424dp wide) and what his launcher reports
+     * (the same width, ~55% of the height). Every widget must look right drawn for the reported size and laid
+     * out in the real one: rings round, nothing on a number.
+     */
+    @Test fun hisPhoneMisreportedSizes() = runTest {
+        fun reported(real: DpSize) = DpSize(real.width, real.height * 0.55f)
+        val total = DpSize(424.dp, 190.dp)
+        val biz = DpSize(424.dp, 318.dp)
+        val today = DpSize(424.dp, 92.dp)
+        val fun3 = DpSize(250.dp, 92.dp)
+        val ai = DpSize(160.dp, 92.dp)
+        shoot("his-trading-total", reported(total), total) { TradingTotalContent(data()) }
+        shoot("his-trading-business", reported(biz), biz) { TradingBusinessContent(data()) }
+        shoot("his-board-today", reported(today), today) { BoardTodayContent(boardData()) }
+        shoot("his-funnel", reported(fun3), fun3) { FunnelContent(boardData()) }
+        shoot("his-openai", reported(ai), ai) { OpenAiContent(boardData(o = board.copy(balances = board.balances!!.map { it.copy(available = 88.0, low = false, warnBelow = 5.0) }))) }
+        // And a launcher that tells the truth.
+        shoot("true-trading-total", total) { TradingTotalContent(data()) }
+        shoot("true-trading-business", biz) { TradingBusinessContent(data()) }
+        shoot("true-board-today", today) { BoardTodayContent(boardData()) }
     }
 
     @Test fun tradingByBusiness() = runTest {

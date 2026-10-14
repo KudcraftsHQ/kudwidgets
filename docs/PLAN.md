@@ -182,11 +182,15 @@ Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataS
   window (the month's later days stay empty); an unknown filter (a business or product that went away) falls back
   to all, never to an empty widget.
 
-- **Sizing doesn't trust the launcher** (found on Hammas's phone, 2026-10-14: it reports widgets ~60% of their real
-  height, so SizeMode.Exact stretched the bitmaps and hid the stats). Each widget offers a ladder of heights
-  (`SizeMode.Responsive`, narrow key width); on Android 12+ the system picks the rung by the widget's real measured
-  size. Width comes from the launcher (its widths were right). Bitmaps draw half a rung taller than the key, at most
-  2 px/dp, and `SizingTest` keeps every ladder inside Android's per-update bitmap budget on a 1080×2400 phone.
+- **Charts never stretch** (found on Hammas's phone, 2026-10-14: his launcher reports widgets ~55% of their real
+  height, and it also picks Responsive layouts by that reported size, so neither Exact nor a height ladder can
+  know the real height). Every chart is a band pinned to the widget's bottom, sized in dp from the width (which
+  launchers report right), shown with a uniform centre-crop: a circle stays a circle in any real box. Text stays
+  anchored top-left and stats bottom-right; what fits is decided by width, not height. The Trading time axis stops
+  left of the stats column; Board · today's area lives between the number and Contrib (the hours so far spread
+  across it); the "now" ring is drawn after any text erase so it is never dimmed. Band bitmaps clip their own
+  bottom corners. `Screenshots.hisPhoneMisreportedSizes` renders every widget for the reported size inside the
+  real box. Debug builds carry `DemoSeeder` (sample data, network paused) for on-device screenshots.
 
 ## Rules for whoever builds this
 

@@ -19,6 +19,7 @@ import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
@@ -104,3 +105,28 @@ fun Stat(label: String, value: String, dim: Boolean, valueSize: TextUnit = 18.sp
         Text(value, style = text(valueSize, if (dim) Palette.creamDim else Palette.cream), maxLines = 1)
     }
 }
+
+
+/**
+ * A chart band pinned to the widget's bottom edge, shown with a uniform scale only (centre-crop, never
+ * stretch). Launchers can report a widget shorter than it really is; a stretched bitmap turns the "now" ring
+ * into an oval, a cropped one can't. The band's height is in dp, so it's the same on any real widget height.
+ */
+@Composable
+fun BottomBand(bitmap: android.graphics.Bitmap, height: Dp) {
+    androidx.glance.layout.Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        androidx.glance.Image(
+            provider = ImageProvider(bitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxWidth().height(height),
+            contentScale = androidx.glance.layout.ContentScale.Crop,
+        )
+    }
+}
+
+/** Rough width of a run of text, in dp, for keeping charts clear of it. Generous on purpose. */
+fun textWidthDp(text: String, sp: Float): Float = text.length * sp * 0.62f
+
+/** Width of the Orders · ROAS · Contrib block, in dp. */
+fun statsWidthDp(values: List<String>, valueSp: Float, gapDp: Float): Float =
+    values.sumOf { v -> maxOf(textWidthDp(v, valueSp), 44f).toDouble() }.toFloat() + gapDp * (values.size - 1)

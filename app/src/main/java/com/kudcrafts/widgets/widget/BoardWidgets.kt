@@ -43,12 +43,12 @@ import com.kudcrafts.widgets.store.WidgetOptions
 import com.kudcrafts.widgets.ui.Palette
 import com.kudcrafts.widgets.work.Refresher
 
-private fun density(context: Context) = chartScale(context)
+private fun density(context: Context) = context.resources.displayMetrics.density
 
 @Composable
 private fun NonData(display: Display<*>, title: String, qualifier: String?, url: String) {
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val (time, _) = headerTime(display)
     Column(
         GlanceModifier.fillMaxSize().surface().padding(horizontal = WidgetPadH, vertical = WidgetPadV)
@@ -62,14 +62,11 @@ private fun NonData(display: Display<*>, title: String, qualifier: String?, url:
 // ── Board · today (5×1) ───────────────────────────────────────────────────────────────────────────
 
 class BoardTodayWidget : GlanceAppWidget() {
-    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
-
-    private companion object { val STEP = 16.dp }
+    override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context, options.period)
-        val width = reportedWidth(context, id)
-        provideContent { Sized(width, STEP) { BoardTodayContent(display, options) } }
+        provideContent { BoardTodayContent(display, options) }
     }
 }
 
@@ -78,7 +75,7 @@ fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = 
     val tapUrl = options.tapUrl ?: BoardRepo.DASHBOARD
     if (display !is Display.Data) return NonData(display, "Board", options.period.label, tapUrl)
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val o = display.data
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
@@ -93,21 +90,20 @@ fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = 
     val big = if (size.height >= 76.dp) 30.sp else 24.sp
 
     val w = size.width.value; val h = size.height.value
-    val quiet = buildList {
-        add(RectF(0f, 0f, 16f + headline.length * big.value * 0.62f + 10f, h))
-        if (showContrib) add(RectF(w - 16f - 70f, 26f, w, h))
-    }
+    // The area lives between the number and Contrib, in a bottom band: it never runs through either.
+    val band = minOf(w * 0.13f, h * 0.6f).coerceAtLeast(26f)
+    val plotLeft = WidgetPadH.value + textWidthDp(headline, big.value) + 10f
+    val plotRight = if (showContrib) w - WidgetPadH.value - maxOf(textWidthDp(Format.short(contrib!!), 18f), 48f) - 10f else w
     val d = density(context)
     val (slots, finished) = BoardMath.revenueSlots(o, options.period, options.filter, display.fetchedAt)
     val chart = BoardCharts.revenueArea(
-        (w * d).toInt(), (h * d).toInt(), d, slots, finished,
-        // Below the header row: the qualifier's product numbers must stay on plain surface.
-        topPx = 36f * d,
-        quiet = quiet.map { RectF(it.left * d, it.top * d, it.right * d, it.bottom * d) }, dimmed = dim,
+        (w * d).toInt(), (band * d).toInt(), d, slots, finished,
+        topPx = 3f * d, quiet = emptyList(), dimmed = dim,
+        plotLeftPx = plotLeft * d, plotRightPx = maxOf(plotRight, plotLeft + 40f) * d,
     )
 
     Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
-        Image(ImageProvider(chart), null, GlanceModifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        BottomBand(chart, band.dp)
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
             WidgetHeader("Board", qualifier, time, timeColor)
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
@@ -122,14 +118,11 @@ fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = 
 // ── Board · funnel (3×1) ──────────────────────────────────────────────────────────────────────────
 
 class FunnelWidget : GlanceAppWidget() {
-    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
-
-    private companion object { val STEP = 16.dp }
+    override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context, options.period)
-        val width = reportedWidth(context, id)
-        provideContent { Sized(width, STEP) { FunnelContent(display, options) } }
+        provideContent { FunnelContent(display, options) }
     }
 }
 
@@ -139,7 +132,7 @@ fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
     val qualifier = options.period.label.takeIf { options.period != com.kudcrafts.widgets.store.Period.Today }
     if (display !is Display.Data) return NonData(display, "Funnel", qualifier, tapUrl)
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val f = BoardMath.funnel(display.data, options.filter)
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
@@ -147,10 +140,11 @@ fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
     val d = density(context)
     val inner = size.width.value - 2 * WidgetPadH.value
     val centers = steps.indices.map { (WidgetPadH.value + (it + 0.5f) * inner / steps.size) * d }
-    val band = BoardCharts.funnelBand((size.width.value * d).toInt(), (size.height.value * d).toInt(), d, steps.map { it.second }, centers, dim)
+    val bandDp = minOf(size.width.value * 0.2f, size.height.value * 0.62f).coerceAtLeast(26f)
+    val band = BoardCharts.funnelBand((size.width.value * d).toInt(), (bandDp * d).toInt(), d, steps.map { it.second }, centers, dim)
 
     Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
-        Image(ImageProvider(band), null, GlanceModifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        BottomBand(band, bandDp.dp)
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
             WidgetHeader("Funnel", qualifier, time, timeColor)
             Spacer(GlanceModifier.defaultWeight())
@@ -169,14 +163,11 @@ fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
 // ── OpenAI credit (2×1) ───────────────────────────────────────────────────────────────────────────
 
 class OpenAiWidget : GlanceAppWidget() {
-    override val sizeMode = heightLadder(56.dp, 200.dp, STEP)
-
-    private companion object { val STEP = 16.dp }
+    override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context)
-        val width = reportedWidth(context, id)
-        provideContent { Sized(width, STEP) { OpenAiContent(display, options) } }
+        provideContent { OpenAiContent(display, options) }
     }
 }
 
@@ -184,7 +175,7 @@ class OpenAiWidget : GlanceAppWidget() {
 fun OpenAiContent(display: Display<BoardOverview>, options: WidgetOptions = WidgetOptions()) {
     if (display !is Display.Data) return NonData(display, "OpenAI", null, BoardRepo.DASHBOARD)
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val b = BoardMath.openAi(display.data)
     val (time, timeColor) = headerTime(display)
     val warn = b == null || b.needsAttention || display.stale || display.error != null
@@ -196,8 +187,9 @@ fun OpenAiContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
         else -> null
     }
     val d = density(context)
+    val tankDp = minOf(size.width.value * 0.32f, size.height.value * 0.55f).coerceAtLeast(24f)
     val liquid = BoardCharts.liquid(
-        (size.width.value * d).toInt(), (size.height.value * d).toInt(), d,
+        (size.width.value * d).toInt(), (tankDp * d).toInt(), d,
         b?.let(BoardMath::tankLevel) ?: 0.0, warning = warn, dimmed = false,
     )
     val url = options.tapUrl ?: b?.topUpUrl ?: BoardRepo.DASHBOARD
@@ -207,7 +199,7 @@ fun OpenAiContent(display: Display<BoardOverview>, options: WidgetOptions = Widg
             .cornerRadius(22.dp)
             .clickable(openAction(context, url)),
     ) {
-        Image(ImageProvider(liquid), null, GlanceModifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        BottomBand(liquid, tankDp.dp)
         Column(GlanceModifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = WidgetPadV, bottom = 6.dp)) {
             WidgetHeader("OpenAI", null, time, timeColor)
             Text(

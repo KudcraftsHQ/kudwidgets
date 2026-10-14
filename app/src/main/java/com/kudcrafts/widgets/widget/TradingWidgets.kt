@@ -106,53 +106,64 @@ private fun StatsRow(kpis: Kpis, dim: Boolean, valueSize: androidx.compose.ui.un
     }
 }
 
-private fun chartImage(
+/**
+ * The chart band's bitmap, `widthDp × bandDp`, pinned to the widget's bottom. `statsLeftDp` is where the
+ * stats column starts (the time axis stops short of it, so no curve or ring ever sits on a stat); `quietDp`
+ * is text that can reach into the band, in band coordinates.
+ */
+private fun chartBand(
     context: Context,
-    size: DpSize,
+    widthDp: Float,
+    bandDp: Float,
     figure: TradingFigure,
-    topFraction: Float,
+    statsLeftDp: Float?,
     quietDp: List<RectF>,
     dimmed: Boolean,
-    yesterdayLabel: Boolean = true,
-    clipCorners: Boolean = false,
-): ImageProvider {
-    val d = chartScale(context)
-    val bmp = RunningChart.draw(
+    yesterdayLabel: Boolean,
+    bottomOfWidget: Boolean,
+): android.graphics.Bitmap {
+    val d = context.resources.displayMetrics.density
+    return RunningChart.draw(
         RunningChart.Spec(
-            widthPx = (size.width.value * d).toInt(),
-            heightPx = (size.height.value * d).toInt(),
+            widthPx = (widthDp * d).toInt(),
+            heightPx = (bandDp * d).toInt(),
             density = d,
             today = figure.today,
             yesterday = figure.yesterday,
-            topFraction = topFraction,
+            topFraction = 0.10f,
+            bottomInsetDp = 5f,
             quiet = quietDp.map { RectF(it.left * d, it.top * d, it.right * d, it.bottom * d) },
             dimmed = dimmed,
             yesterdayLabel = yesterdayLabel,
-            clipCorners = clipCorners,
+            clipBottomCorners = bottomOfWidget,
+            plotRightPx = statsLeftDp?.let { (it - 10f) * d },
         ),
     )
-    return ImageProvider(bmp)
+}
+
+/** Text that sits in widget coordinates `rect`, moved into a bottom band `bandDp` tall of a widget `hDp` tall. */
+private fun intoBand(rect: RectF, hDp: Float, bandDp: Float): RectF? {
+    val top = hDp - bandDp
+    if (rect.bottom <= top) return null
+    return RectF(rect.left, rect.top - top, rect.right, rect.bottom - top)
 }
 
 // ── Trading · total (5×2) ─────────────────────────────────────────────────────────────────────────
 
 class TradingTotalWidget : GlanceAppWidget() {
-    override val sizeMode = heightLadder(72.dp, 252.dp, STEP)
-
-    private companion object { val STEP = 20.dp }
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = TradingRepo.display(context, options.period)
-        val width = reportedWidth(context, id)
-        provideContent { Sized(width, STEP) { TradingTotalContent(display, options) } }
+        provideContent { TradingTotalContent(display, options) }
     }
 }
 
 @Composable
 fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val (time, timeColor) = headerTime(display)
     val defaultUrl = options.filter?.let(TradingRepo::businessUrl) ?: TradingRepo.DASHBOARD
     val tapUrl = options.tapUrl ?: defaultUrl
@@ -177,25 +188,26 @@ fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOption
     val figure = TradingFigure.of(kpis, series, ySeries, display.fetchedAt, options.period, snap.today.dates.from)
     val qualifier = listOfNotNull(business?.name, options.period.label).joinToString(" · ")
     val dim = display.stale
-    val showStats = size.height >= 112.dp && size.width >= 250.dp
-    val showDelta = size.height >= 84.dp
+    // Launchers can under-report height (Hammas's does, by ~40%), so only width decides what fits beside the
+    // headline; the stats sit bottom-right whatever the real height is.
+    val showStats = size.width >= 260.dp
+    val showDelta = size.height >= 70.dp
     val bigSize = if (size.height >= 112.dp) 38.sp else 30.sp
     val headline = Format.short(figure.kpis.revenue)
+    val statValues = listOf(Format.count(figure.kpis.orders), Format.roas(figure.kpis.roas), Format.short(figure.kpis.contribution))
 
-    // Where real text sits, so the chart hushes there (dp, widget coordinates).
     val w = size.width.value; val h = size.height.value
-    val quiet = buildList {
-        add(RectF(0f, 0f, 24f + headline.length * bigSize.value * 0.62f + 8f, 22f + bigSize.value * 1.25f + (if (showDelta) 22f else 0f) + 12f))
-        if (showStats) add(RectF(w - 16f - 186f, h - 12f - 44f, w - 6f, h - 4f))
-    }
+    // A fixed-height band at the bottom, sized from the width (launchers report widths right, heights not
+    // always); only a genuinely short widget (5×1) trims it.
+    val band = minOf(w * 0.26f, h * 0.9f).coerceAtLeast(36f)
+    val statsLeft = if (showStats) w - WidgetPadH.value - statsWidthDp(statValues, 18f, 20f) else null
+    val headlineBlock = RectF(0f, 0f, WidgetPadH.value + textWidthDp(headline, bigSize.value) + 12f,
+        WidgetPadV.value + 22f + bigSize.value * 1.25f + (if (showDelta) 20f else 0f) + 6f)
+    val chart = chartBand(context, w, band, figure, statsLeft, listOfNotNull(intoBand(headlineBlock, h, band)), dim,
+        yesterdayLabel = true, bottomOfWidget = true)
 
     Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
-        Image(
-            provider = chartImage(context, size, figure, if (showStats) 0.34f else 0.42f, quiet, dim, clipCorners = true),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.fillMaxSize(),
-        )
+        BottomBand(chart, band.dp)
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
             WidgetHeader("Trading", qualifier, time, timeColor)
             Text(headline, style = text(bigSize, if (dim) Palette.creamDim else Palette.cream), maxLines = 1)
@@ -212,22 +224,19 @@ fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOption
 // ── Trading · by business (5×3) ───────────────────────────────────────────────────────────────────
 
 class TradingBusinessWidget : GlanceAppWidget() {
-    override val sizeMode = heightLadder(120.dp, 372.dp, STEP)
-
-    private companion object { val STEP = 36.dp }
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
         val display = TradingRepo.display(context, options.period)
-        val width = reportedWidth(context, id)
-        provideContent { Sized(width, STEP) { TradingBusinessContent(display, options) } }
+        provideContent { TradingBusinessContent(display, options) }
     }
 }
 
 @Composable
 fun TradingBusinessContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
-    val size = widgetSize()
+    val size = LocalSize.current
     val (time, timeColor) = headerTime(display)
     val headerUrl = options.tapUrl ?: TradingRepo.DASHBOARD
 
@@ -270,32 +279,29 @@ fun TradingBusinessContent(display: Display<TradingSnapshot>, options: WidgetOpt
                 }
             }
             val figure = TradingFigure.of(b.kpis, b.series, yesterdayBySlug[b.slug]?.series, display.fetchedAt, options.period, snap.today.dates.from)
-            // The band fills its share by weight (the real height); bandH is the estimate its chart is drawn for.
-            BusinessBand(context, DpSize(size.width, bandH - if (i > 0) 1.dp else 0.dp), b.name, b.slug, figure, dim, GlanceModifier.defaultWeight())
+            // Each band takes its share of the real height by weight; bandH (from the reported size) only sizes its chart.
+            BusinessBand(context, DpSize(size.width, bandH - if (i > 0) 1.dp else 0.dp), b.name, b.slug, figure, dim, GlanceModifier.defaultWeight(), last = i == shown.lastIndex)
         }
     }
 }
 
 @Composable
-private fun BusinessBand(context: Context, band: DpSize, name: String, slug: String, figure: TradingFigure, dim: Boolean, modifier: GlanceModifier) {
-    val showStats = band.height >= 84.dp && band.width >= 250.dp
-    val showDelta = band.height >= 64.dp
+private fun BusinessBand(context: Context, bandSize: DpSize, name: String, slug: String, figure: TradingFigure, dim: Boolean, modifier: GlanceModifier, last: Boolean) {
+    val showStats = bandSize.width >= 260.dp
+    val showDelta = bandSize.height >= 56.dp
     val headline = Format.short(figure.kpis.revenue)
-    val w = band.width.value; val h = band.height.value
-    val quiet = buildList {
-        add(RectF(0f, 0f, 16f + 26f + headline.length * 26f * 0.62f + 10f, 10f + 32f + (if (showDelta) 18f else 0f) + 8f))
-        if (showStats) add(RectF(w - 16f - 168f, h - 10f - 38f, w - 6f, h - 2f))
-    }
+    val statValues = listOf(Format.count(figure.kpis.orders), Format.roas(figure.kpis.roas), Format.short(figure.kpis.contribution))
+    val w = bandSize.width.value; val h = bandSize.height.value
+    val band = minOf(w * 0.15f, h * 0.9f).coerceAtLeast(28f)
+    val statsLeft = if (showStats) w - WidgetPadH.value - statsWidthDp(statValues, 15f, 16f) else null
+    val headlineBlock = RectF(0f, 0f, WidgetPadH.value + 28f + textWidthDp(headline, 26f) + 10f, 8f + 34f + (if (showDelta) 18f else 0f) + 6f)
+    // No "yesterday" label in a band: it would crowd the stats, and the total widget names the dashes.
+    val chart = chartBand(context, w, band, figure, statsLeft, listOfNotNull(intoBand(headlineBlock, h, band)), dim,
+        yesterdayLabel = false, bottomOfWidget = last)
     Box(
         modifier.fillMaxWidth().clickable(openAction(context, TradingRepo.businessUrl(slug))),
     ) {
-        Image(
-            // No "yesterday" label in a band: it would crowd the stats, and the total widget names the dashes.
-            provider = chartImage(context, band, figure, 0.36f, quiet, dim, yesterdayLabel = false),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.fillMaxSize(),
-        )
+        BottomBand(chart, band.dp)
         Column(GlanceModifier.fillMaxSize().padding(start = WidgetPadH, end = WidgetPadH, top = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LetterChip(name)
