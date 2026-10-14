@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Kud Widgets</string>
-    <string name="placeholder_widget_label">Kud Widgets</string>
-    <string name="placeholder_widget_description">Placeholder while the Trading and Board widgets are built</string>
+    <string name="trading_total_label">Trading · total</string>
+    <string name="trading_total_description">Today\'s revenue across every business, against yesterday</string>
+    <string name="trading_business_label">Trading · by business</string>
+    <string name="trading_business_description">Today\'s revenue per business, each with its own curve</string>
 </resources>

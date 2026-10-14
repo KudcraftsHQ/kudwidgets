@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Business letter chip: a quiet cream tint, never a highlight pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#26FEF8E8" />
+    <corners android:radius="6dp" />
+</shape>

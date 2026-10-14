@@ -40,6 +40,12 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      - uses: actions/upload-artifact@v4
+        if: env.IS_RELEASE != 'true'
+        with:
+          name: widget-screenshots
+          path: app/build/screenshots/*.png
+
       - name: Debug APK (pull requests)
         if: env.IS_RELEASE != 'true'
         run: ./gradlew --no-daemon assembleDebug

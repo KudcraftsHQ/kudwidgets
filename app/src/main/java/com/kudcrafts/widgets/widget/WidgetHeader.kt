@@ -1,6 +1,7 @@
 package com.kudcrafts.widgets.widget
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
@@ -21,7 +22,7 @@ import com.kudcrafts.widgets.ui.Palette
 
 /** Header row on every widget: face · bold source · dim qualifier · right-aligned data time. */
 @Composable
-fun WidgetHeader(source: String, qualifier: String?, time: String?) {
+fun WidgetHeader(source: String, qualifier: String?, time: String?, timeColor: Color = Palette.creamDim) {
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -39,11 +40,12 @@ fun WidgetHeader(source: String, qualifier: String?, time: String?) {
         )
         if (qualifier != null) {
             Spacer(GlanceModifier.width(6.dp))
-            Text(qualifier, style = TextStyle(color = ColorProvider(Palette.creamDim), fontSize = 13.sp), maxLines = 1)
+            Text(qualifier, style = TextStyle(color = ColorProvider(Palette.creamDim), fontSize = 13.sp), maxLines = 1, modifier = GlanceModifier.defaultWeight())
         }
-        Spacer(GlanceModifier.defaultWeight())
+        if (qualifier == null) Spacer(GlanceModifier.defaultWeight())
         if (time != null) {
-            Text(time, style = TextStyle(color = ColorProvider(Palette.creamDim), fontSize = 13.sp), maxLines = 1)
+            Spacer(GlanceModifier.width(8.dp))
+            Text(time, style = TextStyle(color = ColorProvider(timeColor), fontSize = 13.sp), maxLines = 1)
         }
     }
 }
