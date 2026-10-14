@@ -23,9 +23,14 @@ object BoardCharts {
 
     private fun canvas(w: Int, h: Int) = Bitmap.createBitmap(w.coerceAtLeast(1), h.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
 
-    /** Clip to the widget's own corners: not every launcher clips a widget's children to its outline. */
-    internal fun clipCorners(c: Canvas, w: Int, h: Int, d: Float) {
-        c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), 22f * d, 22f * d, Path.Direction.CW) })
+    /**
+     * Clip a bottom-pinned band to the widget's bottom corners: not every launcher clips a widget's children to
+     * its outline. The band's top edge is mid-widget, so only the bottom corners are rounded.
+     */
+    internal fun clipBottomCorners(c: Canvas, w: Int, h: Int, d: Float) {
+        val r = 22f * d
+        val radii = floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r)
+        c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radii, Path.Direction.CW) })
     }
 
     private fun hush(c: Canvas, quiet: List<RectF>, d: Float) {
@@ -42,26 +47,38 @@ object BoardCharts {
      * Board · today: a faint area of IDR revenue per slot (hours of a day, or days of a window), the window's
      * start at the left edge, through the last finished slot. Faint on purpose: the number is the point.
      */
-    fun revenueArea(w: Int, h: Int, d: Float, slots: DoubleArray, finished: Int, topPx: Float, quiet: List<RectF>, dimmed: Boolean): Bitmap {
+    fun revenueArea(
+        w: Int, h: Int, d: Float, raw: DoubleArray, finished: Int, topPx: Float, quiet: List<RectF>, dimmed: Boolean,
+        plotLeftPx: Float = 0f, plotRightPx: Float = w.toFloat(),
+    ): Bitmap {
         val bmp = canvas(w, h)
         val c = Canvas(bmp)
-        clipCorners(c, w, h, d)
-        val n = slots.size.coerceAtLeast(1)
+        clipBottomCorners(c, w, h, d)
+        val n = raw.size.coerceAtLeast(1)
+        // A light 1-2-1 smoothing: hourly orders are lumpy, and this is a mood, not a reading.
+        val slots = DoubleArray(raw.size) { i ->
+            (raw.getOrElse(i - 1) { raw[i] } + 2 * raw[i] + raw.getOrElse(i + 1) { raw[i] }) / 4
+        }
         val max = slots.take(finished.coerceIn(0, n)).maxOrNull() ?: 0.0
         if (finished < 1 || max <= 0) return bmp
         val top = topPx
         val bottom = h - 4f * d
         val strength = if (dimmed) 0.6f else 1f
         // A point mid-hour per finished hour, anchored at 0 on the left.
+        // The slots so far spread across the plot: it's the shape of the day (or window) so far, between the
+        // number and Contrib, not a clock.
+        val count = finished.coerceIn(1, n)
+        val span = plotRightPx - plotLeftPx
         val pts = buildList {
-            add(0f to bottom)
-            for (i in 0 until finished.coerceAtMost(n)) {
-                add(((i + 0.5) / n * w).toFloat() to (bottom - (slots[i] / max) * (bottom - top)).toFloat())
+            add(plotLeftPx to bottom)
+            for (i in 0 until count) {
+                add((plotLeftPx + (i + 0.5) / count * span).toFloat() to (bottom - (slots[i] / max) * (bottom - top)).toFloat())
             }
+            add(plotRightPx to (bottom - (slots[count - 1] / max) * (bottom - top)).toFloat())
         }
         val line = smoothNoMonotone(pts)
         val fill = Path(line).apply {
-            lineTo(pts.last().first, h.toFloat()); lineTo(0f, h.toFloat()); close()
+            lineTo(pts.last().first, h.toFloat()); lineTo(plotLeftPx, h.toFloat()); close()
         }
         c.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(0f, top, 0f, h.toFloat(), withAlpha(cream, 0.20f * strength), withAlpha(cream, 0f), Shader.TileMode.CLAMP)
@@ -81,10 +98,10 @@ object BoardCharts {
     fun funnelBand(w: Int, h: Int, d: Float, steps: List<Double>, columnCenters: List<Float>, dimmed: Boolean): Bitmap {
         val bmp = canvas(w, h)
         val c = Canvas(bmp)
-        clipCorners(c, w, h, d)
+        clipBottomCorners(c, w, h, d)
         val first = steps.firstOrNull()?.takeIf { it > 0 } ?: return bmp
-        val maxH = h * 0.62f
-        val minH = h * 0.10f
+        val maxH = h * 0.92f
+        val minH = h * 0.16f
         val heights = steps.map { (minH + (maxH - minH) * sqrt((it / first).coerceIn(0.0, 1.0))).toFloat() }
         val pts = buildList {
             add(0f to h - heights.first())
@@ -107,10 +124,11 @@ object BoardCharts {
     fun liquid(w: Int, h: Int, d: Float, level: Double, warning: Boolean, dimmed: Boolean): Bitmap {
         val bmp = canvas(w, h)
         val c = Canvas(bmp)
-        clipCorners(c, w, h, d)
+        clipBottomCorners(c, w, h, d)
         val lvl = level.coerceIn(0.0, 1.0).toFloat()
-        // Never quite empty or brim-full: a sliver stays visible, and the text above stays on the surface.
-        val surfaceY = h - (h * (0.08f + 0.47f * lvl))
+        // The band is the tank. Never quite empty or brim-full: a sliver always shows, the wave never clips.
+        val amp0 = 3.2f * d
+        val surfaceY = h - ((h - 2 * amp0) * (0.15f + 0.85f * lvl))
         val amp = 3.2f * d
         val path = Path().apply {
             moveTo(0f, h.toFloat())

@@ -16,12 +16,13 @@ import androidx.compose.ui.graphics.toArgb
 import com.kudcrafts.widgets.ui.Palette
 
 /**
- * The background of a Trading widget: today's running revenue to "now" with a soft cream fill, a hairline
- * and ring at now, and yesterday's whole day dashed to the right edge. No axes, no grid.
+ * A Trading chart: today's running revenue to "now" with a soft cream fill, a hairline and ring at now, and
+ * yesterday's whole day dashed. No axes, no grid.
  *
- * It is a bitmap under real text, so it keeps out of the text's way: the scale tops out at [topFraction]
- * of the height (header and the big number own the top-left), and [quiet] rects (the stats block) get a
- * feathered surface scrim so no curve runs through a number.
+ * It is a band pinned to the bottom of the widget and shown with a uniform scale only (crop, never stretch),
+ * so the ring stays round whatever size the launcher really gives the widget. The time axis runs across
+ * [Spec.plotLeftPx]..[Spec.plotRightPx], which the widgets set to stop short of the stats column, and [quiet]
+ * rects erase the ink under any text that can still reach the band.
  */
 object RunningChart {
     data class Spec(
@@ -40,8 +41,11 @@ object RunningChart {
         /** Draw everything at reduced strength (stale numbers). */
         val dimmed: Boolean = false,
         val yesterdayLabel: Boolean = true,
-        /** Clip to the widget's rounded corners (a whole-widget background; bands don't need it). */
-        val clipCorners: Boolean = false,
+        /** Clip the band's bottom corners to the widget's radius (the band sits on the widget's bottom edge). */
+        val clipBottomCorners: Boolean = false,
+        /** The time axis's horizontal extent in px; defaults to the whole width. */
+        val plotLeftPx: Float = 0f,
+        val plotRightPx: Float? = null,
     )
 
     fun draw(spec: Spec): Bitmap {
@@ -50,17 +54,18 @@ object RunningChart {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val d = spec.density
-        if (spec.clipCorners) BoardCharts.clipCorners(c, w, h, d)
+        if (spec.clipBottomCorners) BoardCharts.clipBottomCorners(c, w, h, d)
         val cream = Palette.cream.toArgb()
         val strength = if (spec.dimmed) 0.55f else 1f
 
         val max = maxOf(spec.today.maxOfOrNull { it.second } ?: 0.0, spec.yesterday.maxOfOrNull { it.second } ?: 0.0)
         val top = h * spec.topFraction
         val bottom = h - spec.bottomInsetDp * d
-        // When today runs to the window's end (7 days, month, a whole yesterday), stop short of the edge so the
-        // ring at "now" stays whole.
-        val span = if ((spec.today.lastOrNull()?.first ?: 0.0) >= 23.99) w - 7f * d else w.toFloat()
-        fun x(hour: Double) = (hour / 24.0 * span).toFloat()
+        val left = spec.plotLeftPx
+        val right = (spec.plotRightPx ?: w.toFloat()).coerceIn(left + 1f, w.toFloat())
+        // When today runs to the axis's end (7 days, month, a whole yesterday), stop short so the ring stays whole.
+        val span = (right - left) - if ((spec.today.lastOrNull()?.first ?: 0.0) >= 23.99) 7f * d else 0f
+        fun x(hour: Double) = (left + hour / 24.0 * span).toFloat()
         fun y(v: Double) = if (max <= 0) bottom else (bottom - (v / max) * (bottom - top)).toFloat()
 
         // Yesterday, dashed, whole day to the right edge.
@@ -81,14 +86,17 @@ object RunningChart {
                     typeface = Typeface.DEFAULT
                 }
                 // Under the line across the label's whole width, so the dashes never strike through it.
-                val right = w - 8f * d
-                val left = right - tp.measureText("yesterday")
-                val lowest = spec.yesterday.filter { x(it.first) >= left - 4f * d }.maxOf { y(it.second) }
-                c.drawText("yesterday", right, lowest + 13f * d, tp)
+                val labelRight = right - 4f * d
+                val labelLeft = labelRight - tp.measureText("yesterday")
+                val lowest = spec.yesterday.filter { x(it.first) >= labelLeft - 4f * d }.maxOfOrNull { y(it.second) } ?: bottom
+                // Below the line if there's room in the band, else above it.
+                val below = lowest + 13f * d
+                c.drawText("yesterday", labelRight, if (below <= bottom) below else lowest - 5f * d, tp)
             }
         }
 
-        // Today: fill, line, hairline and ring at now.
+        // Today: fill and line; the hairline and ring come last, after the hush, so text zones never dim "now".
+        var ring: Pair<Float, Float>? = null
         if (spec.today.size >= 2) {
             val pts = spec.today.map { x(it.first) to y(it.second) }
             val line = smooth(pts)
@@ -111,17 +119,7 @@ object RunningChart {
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
             })
-            val (nx, ny) = pts.last()
-            c.drawLine(nx, ny, nx, h.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                strokeWidth = 1f * d
-                color = withAlpha(cream, 0.28f * strength)
-            })
-            c.drawCircle(nx, ny, 4.5f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.surface.toArgb() })
-            c.drawCircle(nx, ny, 4.5f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = 2f * d
-                color = withAlpha(cream, strength)
-            })
+            ring = pts.last()
         }
 
         // Hush the chart where text sits: erase most of the ink there (feathered), so no box shows where
@@ -133,6 +131,18 @@ object RunningChart {
                 maskFilter = BlurMaskFilter(10f * d, BlurMaskFilter.Blur.NORMAL)
             }
             for (r in spec.quiet) c.drawRoundRect(r, 12f * d, 12f * d, scrim)
+        }
+        ring?.let { (nx, ny) ->
+            c.drawLine(nx, ny, nx, h.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = 1f * d
+                color = withAlpha(cream, 0.28f * strength)
+            })
+            c.drawCircle(nx, ny, 4.5f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.surface.toArgb() })
+            c.drawCircle(nx, ny, 4.5f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 2f * d
+                color = withAlpha(cream, strength)
+            })
         }
         return bmp
     }

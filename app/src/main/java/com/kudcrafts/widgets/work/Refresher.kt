@@ -71,6 +71,8 @@ object Refresher {
     }
 
     suspend fun refreshAll(context: Context) {
+        // Debug demo data (DemoSeeder) stays put: no network while the flag file exists.
+        if (java.io.File(context.filesDir, "demo").exists()) return redraw(context)
         val tradingPeriods = periodsFor(context, listOf(TradingTotalWidget::class.java, TradingBusinessWidget::class.java))
         val trading = runCatching { TradingRepo.refresh(context, tradingPeriods) }
         RefreshLog(context).add("trading", trading.fold({ it.name }, { "error: ${it.message}" }))
