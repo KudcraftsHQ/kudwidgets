@@ -37,6 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.kudcrafts.widgets.auth.TradingSignIn
+import com.kudcrafts.widgets.board.BoardSignIn
+import com.kudcrafts.widgets.widget.BoardTodayReceiver
+import com.kudcrafts.widgets.widget.FunnelReceiver
+import com.kudcrafts.widgets.widget.OpenAiReceiver
 import com.kudcrafts.widgets.core.AuthStatus
 import com.kudcrafts.widgets.core.Jakarta
 import com.kudcrafts.widgets.store.Accounts
@@ -56,6 +60,8 @@ import java.time.format.DateTimeFormatter
  */
 class MainActivity : ComponentActivity() {
     private var message by mutableStateOf<String?>(null)
+    /** The board device code while the person approves it in the browser. */
+    private var boardCode by mutableStateOf<String?>(null)
     private var version by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,17 +91,42 @@ class MainActivity : ComponentActivity() {
                 Refresher.redraw(this@MainActivity)
                 version++
             }
-        } else if (intent?.getStringExtra(EXTRA_SIGN_IN) == Source.Trading.key) {
-            intent.removeExtra(EXTRA_SIGN_IN)
-            lifecycleScope.launch { TradingSignIn.start(this@MainActivity) }
+        } else when (intent?.getStringExtra(EXTRA_SIGN_IN)) {
+            Source.Trading.key -> {
+                intent.removeExtra(EXTRA_SIGN_IN)
+                lifecycleScope.launch { TradingSignIn.start(this@MainActivity) }
+            }
+            Source.Board.key -> {
+                intent.removeExtra(EXTRA_SIGN_IN)
+                signInBoard()
+            }
+        }
+    }
+
+    private fun signInBoard() {
+        if (boardCode != null) return
+        lifecycleScope.launch {
+            message = "Starting board sign-in…"
+            val error = BoardSignIn.run(this@MainActivity) { code ->
+                boardCode = code.userCode
+                message = "Approve code ${code.userCode} in board with read on your products."
+            }
+            boardCode = null
+            message = error ?: "Signed in to board."
+            Refresher.now(this@MainActivity)
+            Refresher.redraw(this@MainActivity)
+            version++
         }
     }
 
     @Composable
     private fun Screen() {
         val v = version
-        val account by produceState<com.kudcrafts.widgets.store.Account?>(null, v) {
+        val trading by produceState<com.kudcrafts.widgets.store.Account?>(null, v) {
             value = Accounts(this@MainActivity).account(Source.Trading)
+        }
+        val board by produceState<com.kudcrafts.widgets.store.Account?>(null, v) {
+            value = Accounts(this@MainActivity).account(Source.Board)
         }
         val log by produceState(emptyList<Triple<Long, String, String>>(), v) { value = RefreshLog(this@MainActivity).entries() }
         val appVersion = BuildConfigInfo.versionName(this)
@@ -113,12 +144,18 @@ class MainActivity : ComponentActivity() {
             message?.let { BasicText(it, style = TextStyle(color = Palette.cream, fontSize = 14.sp)) }
 
             Section("Sources")
-            SourceCard(account)
+            SourceCard(Source.Trading, trading)
+            SourceCard(Source.Board, board)
 
             Section("Add to home screen")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button("Trading · total") { pin(TradingTotalReceiver::class.java) }
                 Button("Trading · by business") { pin(TradingBusinessReceiver::class.java) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button("Board · today") { pin(BoardTodayReceiver::class.java) }
+                Button("Funnel") { pin(FunnelReceiver::class.java) }
+                Button("OpenAI credit") { pin(OpenAiReceiver::class.java) }
             }
 
             Section("Last refreshes")
@@ -130,39 +167,48 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun SourceCard(account: com.kudcrafts.widgets.store.Account?) {
+    private fun SourceCard(source: Source, account: com.kudcrafts.widgets.store.Account?) {
         val now = System.currentTimeMillis()
         val status = account?.status(now)
+        val revokeHint = if (source == Source.Trading) "read-only · revoke in Admin → API Keys" else "revoke in board → Settings → CLI devices"
         Column(
             Modifier.fillMaxWidth().background(Color(0xFF1A171B), RoundedCornerShape(18.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            BasicText("kudtrading", style = TextStyle(color = Palette.cream, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+            BasicText(source.label, style = TextStyle(color = Palette.cream, fontSize = 17.sp, fontWeight = FontWeight.Bold))
             val line = when (status) {
                 null -> "…"
-                AuthStatus.SignedIn -> "Signed in as ${account.email ?: "?"}" +
+                AuthStatus.SignedIn -> "Signed in" + (account.email?.let { " as $it" } ?: "") +
                     (account.expiresAt?.let { " · until ${day(it)}" } ?: "")
                 AuthStatus.SignedOut -> "Signed out"
-                AuthStatus.Refused -> "kudtrading refused the key. Sign in again."
+                AuthStatus.Refused -> "${source.label} refused the key. Sign in again."
                 AuthStatus.Expired -> "The key expired. Sign in again."
             }
             BasicText(line, style = TextStyle(color = if (status == AuthStatus.SignedIn || status == null) Palette.creamDim else Palette.downText, fontSize = 14.sp))
-            account?.keyName?.let { Dim("Key \"$it\" · read-only · revoke in Admin → API Keys") }
+            account?.keyName?.let { Dim("\"$it\" · $revokeHint") }
+            if (source == Source.Board && boardCode != null) {
+                BasicText(boardCode!!, style = TextStyle(color = Palette.cream, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp))
+                Dim("Waiting for approval in board…")
+            }
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (status == AuthStatus.SignedIn) {
                     Button("Refresh now") { Refresher.now(this@MainActivity); message = "Refreshing…" }
                     Button("Sign out") {
                         lifecycleScope.launch {
-                            val revoked = TradingSignIn.signOut(this@MainActivity)
+                            val revoked = if (source == Source.Trading) TradingSignIn.signOut(this@MainActivity)
+                            else BoardSignIn.signOut(this@MainActivity)
                             Refresher.redraw(this@MainActivity)
-                            message = if (revoked) "Signed out of kudtrading and revoked the key."
-                            else "Signed out here, but kudtrading didn't confirm the revoke. Check Admin → API Keys."
+                            message = if (revoked) "Signed out of ${source.label} and revoked the key."
+                            else "Signed out here, but ${source.label} didn't confirm the revoke. Check it there."
                             version++
                         }
                     }
-                } else {
-                    Button("Sign in") { lifecycleScope.launch { TradingSignIn.start(this@MainActivity) } }
+                } else if (!(source == Source.Board && boardCode != null)) {
+                    Button("Sign in") {
+                        if (source == Source.Trading) lifecycleScope.launch { TradingSignIn.start(this@MainActivity) }
+                        else signInBoard()
+                    }
                 }
             }
         }

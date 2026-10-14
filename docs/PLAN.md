@@ -158,6 +158,19 @@ Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataS
   KudcraftsHQ/trading-backoffice#630. 401 and 403 both flip a widget to "Sign in" (403 on a GET means the
   key can't see reports; `read_only_key` would be our bug, since the app never writes).
 
+- **Board** reads one `GET /api/board/overview?lite=1&preset=today` per refresh; Board · today, Funnel and
+  OpenAI credit all draw from that one cached read. Funnel = leads · selfies · created · paid summed over every
+  product's hourly series (what board-bar's funnel chart sums). Revenue is IDR only, never summed with USD.
+  A product that failed (`errorCode`) is left out of the "F 620K · T 75K" line.
+- **OpenAI liquid level** = available ÷ `granted` (the collector reports total credit bought); without it the
+  full mark is 4× `warnBelow`. Warm surface when `low`, `stale`, a collector `problem`, or the read itself is stale.
+  Tap opens the balance's `topUpUrl`.
+- **Board sign-in** shows the user code in the app while board's approval page is open in a Custom Tab, and polls
+  per RFC 8628 (slow_down adds 5 s). Sign-out calls `POST /api/board/cli/logout` (revokes the token) first.
+- **Board · today's area** draws finished hours only (the hour in progress is partial and would read as a dip) and
+  stays below the header row. Funnel and Board taps open board's home: board has no funnel URL of its own yet.
+- All whole-widget bitmaps clip to the 22dp corners themselves: not every launcher clips children to the outline.
+
 ## Rules for whoever builds this
 
 - hammas-dev had no JDK or Android SDK; they are now installed user-space (JDK 21 at `~/.local/share/jdk/current`,

@@ -24,6 +24,10 @@ import com.kudcrafts.widgets.trading.Kpis
 import com.kudcrafts.widgets.trading.Overview
 import com.kudcrafts.widgets.trading.Summary
 import com.kudcrafts.widgets.trading.TradingSnapshot
+import com.kudcrafts.widgets.board.BoardOverview
+import com.kudcrafts.widgets.widget.BoardTodayContent
+import com.kudcrafts.widgets.widget.FunnelContent
+import com.kudcrafts.widgets.widget.OpenAiContent
 import com.kudcrafts.widgets.widget.TradingBusinessContent
 import com.kudcrafts.widgets.widget.TradingTotalContent
 import kotlinx.coroutines.test.runTest
@@ -134,5 +138,39 @@ class Screenshots {
         shoot("trading-business-stale", byBusiness) { TradingBusinessContent(data(ageMin = 38, stale = true)) }
         shoot("trading-business-signin", byBusiness) { TradingBusinessContent(Display.SignIn(AuthStatus.Expired)) }
         shoot("trading-business-5x2", total) { TradingBusinessContent(data()) }
+    }
+
+    // ── board ──
+    private val board: BoardOverview = run {
+        val base = BoardOverview.parse(javaClass.getResource("/board-today.json")!!.readText())
+        // A fuller day for the hourly shape: spread today's revenue over 00–11 like a real morning.
+        val shapeHours = (0..11).map { h -> "2026-10-14T%02d:00".format(h) to shape[h] }
+        val sum = shapeHours.sumOf { it.second }
+        val p0 = base.products[0]
+        val series = shapeHours.map { (t, w) ->
+            com.kudcrafts.widgets.board.BoardPoint(t, revenueIDR = 695_000.0 * w / sum, paid = 0.6 * w, leads = 26.0 * w, selfies = 7.0 * w, created = 1.6 * w)
+        }
+        base.copy(products = listOf(p0.copy(series = series)) + base.products.drop(1))
+    }
+
+    private fun boardData(ageMin: Long = 0, stale: Boolean = false, error: String? = null, o: BoardOverview = board) =
+        Display.Data(o, at - ageMin * min, ageMin, stale, error)
+
+    private val oneRow = DpSize(390.dp, 82.dp)
+    private val funnel = DpSize(234.dp, 82.dp)
+    private val credit = DpSize(150.dp, 82.dp)
+
+    @Test fun boardWidgets() = runTest {
+        shoot("board-today-fresh", oneRow) { BoardTodayContent(boardData()) }
+        shoot("board-today-stale", oneRow) { BoardTodayContent(boardData(ageMin = 45, stale = true)) }
+        shoot("board-today-signin", oneRow) { BoardTodayContent(Display.SignIn(AuthStatus.SignedOut)) }
+        shoot("board-funnel-fresh", funnel) { FunnelContent(boardData()) }
+        shoot("board-funnel-signin", funnel) { FunnelContent(Display.SignIn(AuthStatus.SignedOut)) }
+        shoot("openai-low", credit) { OpenAiContent(boardData()) }
+        val ok = board.copy(balances = board.balances!!.map { it.copy(available = 90.3, low = false, warnBelow = 5.0) })
+        shoot("openai-ok", credit) { OpenAiContent(boardData(o = ok)) }
+        val stale = board.copy(balances = board.balances!!.map { it.copy(available = 90.3, low = false, stale = true) })
+        shoot("openai-not-updating", credit) { OpenAiContent(boardData(o = stale)) }
+        shoot("openai-signin", credit) { OpenAiContent(Display.SignIn(AuthStatus.SignedOut)) }
     }
 }

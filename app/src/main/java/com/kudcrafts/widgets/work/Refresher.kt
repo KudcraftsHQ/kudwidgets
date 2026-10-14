@@ -14,6 +14,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.kudcrafts.widgets.store.RefreshLog
 import com.kudcrafts.widgets.trading.TradingRepo
+import com.kudcrafts.widgets.board.BoardRepo
+import com.kudcrafts.widgets.widget.BoardTodayWidget
+import com.kudcrafts.widgets.widget.FunnelWidget
+import com.kudcrafts.widgets.widget.OpenAiWidget
 import com.kudcrafts.widgets.widget.TradingBusinessWidget
 import com.kudcrafts.widgets.widget.TradingTotalWidget
 import java.util.concurrent.TimeUnit
@@ -48,11 +52,16 @@ object Refresher {
     suspend fun redraw(context: Context) {
         TradingTotalWidget().updateAll(context)
         TradingBusinessWidget().updateAll(context)
+        BoardTodayWidget().updateAll(context)
+        FunnelWidget().updateAll(context)
+        OpenAiWidget().updateAll(context)
     }
 
     suspend fun refreshAll(context: Context) {
         val trading = runCatching { TradingRepo.refresh(context) }
         RefreshLog(context).add("trading", trading.fold({ it.name }, { "error: ${it.message}" }))
+        val board = runCatching { BoardRepo.refresh(context) }
+        RefreshLog(context).add("board", board.fold({ it.name }, { "error: ${it.message}" }))
         redraw(context)
     }
 }

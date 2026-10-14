@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The warning surface (OpenAI credit low or not updating), same shape as widget_surface.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/kw_warn_surface" />
+    <corners android:radius="22dp" />
+</shape>

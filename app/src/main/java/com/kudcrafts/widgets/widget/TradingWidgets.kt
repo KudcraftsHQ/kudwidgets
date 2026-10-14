@@ -96,6 +96,7 @@ private fun chartImage(
     quietDp: List<RectF>,
     dimmed: Boolean,
     yesterdayLabel: Boolean = true,
+    clipCorners: Boolean = false,
 ): ImageProvider {
     val d = context.resources.displayMetrics.density
     val bmp = RunningChart.draw(
@@ -109,6 +110,7 @@ private fun chartImage(
             quiet = quietDp.map { RectF(it.left * d, it.top * d, it.right * d, it.bottom * d) },
             dimmed = dimmed,
             yesterdayLabel = yesterdayLabel,
+            clipCorners = clipCorners,
         ),
     )
     return ImageProvider(bmp)
@@ -159,7 +161,7 @@ fun TradingTotalContent(display: Display<TradingSnapshot>) {
 
     Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, TradingRepo.DASHBOARD))) {
         Image(
-            provider = chartImage(context, size, figure, if (showStats) 0.34f else 0.42f, quiet, dim),
+            provider = chartImage(context, size, figure, if (showStats) 0.34f else 0.42f, quiet, dim, clipCorners = true),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
             modifier = GlanceModifier.fillMaxSize(),

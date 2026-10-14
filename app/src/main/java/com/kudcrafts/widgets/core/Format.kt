@@ -43,6 +43,13 @@ object Format {
         return "${if (pct > 0) "▲" else "▼"} $n% vs yesterday"
     }
 
+    /** $41 · $4.5 · $1.2K — a credit balance on a small widget. */
+    fun usdShort(value: Double): String = when {
+        value >= 1000 -> "$" + short(value)
+        value >= 10 -> "$" + value.toLong()
+        else -> "$" + "%.1f".format(java.util.Locale.ROOT, Math.floor(value * 10) / 10).removeSuffix(".0")
+    }
+
     /** "now" · "38m ago" · "3h ago" · "2d ago". */
     fun age(minutes: Long): String = when {
         minutes < 1 -> "now"
