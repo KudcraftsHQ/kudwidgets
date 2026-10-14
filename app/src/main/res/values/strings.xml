@@ -4,4 +4,10 @@
     <string name="trading_total_description">Today\'s revenue across every business, against yesterday</string>
     <string name="trading_business_label">Trading · by business</string>
     <string name="trading_business_description">Today\'s revenue per business, each with its own curve</string>
+    <string name="board_today_label">Board · today</string>
+    <string name="board_today_description">Today\'s revenue and contribution across board\'s products</string>
+    <string name="funnel_label">Board · funnel</string>
+    <string name="funnel_description">Leads, selfies, created and paid orders today</string>
+    <string name="openai_label">OpenAI credit</string>
+    <string name="openai_description">The OpenAI credit balance board tracks; warm when it runs low</string>
 </resources>

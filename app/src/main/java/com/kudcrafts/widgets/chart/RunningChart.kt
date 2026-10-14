@@ -40,6 +40,8 @@ object RunningChart {
         /** Draw everything at reduced strength (stale numbers). */
         val dimmed: Boolean = false,
         val yesterdayLabel: Boolean = true,
+        /** Clip to the widget's rounded corners (a whole-widget background; bands don't need it). */
+        val clipCorners: Boolean = false,
     )
 
     fun draw(spec: Spec): Bitmap {
@@ -48,6 +50,7 @@ object RunningChart {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val d = spec.density
+        if (spec.clipCorners) BoardCharts.clipCorners(c, w, h, d)
         val cream = Palette.cream.toArgb()
         val strength = if (spec.dimmed) 0.55f else 1f
 
@@ -157,6 +160,6 @@ object RunningChart {
         return path
     }
 
-    private fun withAlpha(argb: Int, a: Float): Int =
+    internal fun withAlpha(argb: Int, a: Float): Int =
         ((a.coerceIn(0f, 1f) * ((argb ushr 24) and 0xFF)).toInt() shl 24) or (argb and 0xFFFFFF)
 }

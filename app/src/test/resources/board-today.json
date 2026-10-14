@@ -1,0 +1,32 @@
+{
+  "preset": "today",
+  "dates": { "from": "2026-10-14", "to": "2026-10-14" },
+  "products": [
+    { "slug": "atlas", "name": "Atlas", "color": "#c96", "bucket": "hour",
+      "kpis": { "revenue": { "current": { "IDR": 620000, "USD": 12 }, "previous": { "IDR": 500000, "USD": 0 } },
+                "adSpend": { "current": 300000, "previous": 280000 }, "aiSpend": { "current": 50000, "previous": 40000 },
+                "contribution": { "current": 270000, "previous": 180000 }, "contributionPct": 43.5,
+                "roas": { "current": 2.06, "previous": null } },
+      "series": [
+        { "t": "2026-10-14T09:00", "revenueIDR": 200000, "revenueUSD": 0, "paid": 2, "leads": 100, "selfies": 30, "created": 7 },
+        { "t": "2026-10-14T10:00", "revenueIDR": 420000, "revenueUSD": 12, "paid": 4, "leads": 150, "selfies": 40, "created": 9 }
+      ] },
+    { "slug": "birch", "name": "birch", "bucket": "hour",
+      "kpis": { "revenue": { "current": { "IDR": 75000, "USD": 0 }, "previous": { "IDR": 0, "USD": 0 } },
+                "contribution": { "current": -30000, "previous": 0 } },
+      "series": [
+        { "t": "2026-10-14T10:00", "revenueIDR": 75000, "paid": 1, "leads": 60, "selfies": 18, "created": 3 }
+      ] },
+    { "slug": "cedar", "name": "Cedar", "errorCode": "unreachable", "error": "timeout" }
+  ],
+  "combined": {
+    "revenue": { "current": { "IDR": 695000, "USD": 12 }, "previous": { "IDR": 500000, "USD": 0 } },
+    "contribution": { "current": 240000, "previous": 180000 }, "contributionPct": 34.5,
+    "roas": { "current": 1.7, "previous": null }
+  },
+  "balances": [
+    { "provider": "openai", "name": "OpenAI", "topUpUrl": "https://platform.openai.com/settings/organization/billing/overview",
+      "available": 41.2, "currency": "USD", "granted": 540, "used": 498.8, "warnBelow": 50,
+      "fetchedAt": "2026-10-14T05:00:41.246Z", "problem": null, "low": true, "stale": false }
+  ]
+}
