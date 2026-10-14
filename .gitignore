@@ -1,0 +1,9 @@
+# local design references: they show private apps on Hammas's phone
+docs/reference/
+.gradle/
+build/
+local.properties
+*.jks
+*.keystore
+.idea/
+*.iml
