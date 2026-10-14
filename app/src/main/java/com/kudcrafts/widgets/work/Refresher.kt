@@ -1,7 +1,11 @@
 package com.kudcrafts.widgets.work
 
 import android.content.Context
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
+import com.kudcrafts.widgets.store.OptionsStore
+import com.kudcrafts.widgets.store.Period
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -57,10 +61,21 @@ object Refresher {
         OpenAiWidget().updateAll(context)
     }
 
+    /** The windows the placed widgets of these kinds show, plus today (the gallery and app always show it). */
+    suspend fun periodsFor(context: Context, kinds: List<Class<out GlanceAppWidget>>): Set<Period> {
+        val manager = GlanceAppWidgetManager(context)
+        val options = OptionsStore(context)
+        val out = mutableSetOf(Period.Today)
+        for (kind in kinds) for (id in manager.getGlanceIds(kind)) out += options.get(id).period
+        return out
+    }
+
     suspend fun refreshAll(context: Context) {
-        val trading = runCatching { TradingRepo.refresh(context) }
+        val tradingPeriods = periodsFor(context, listOf(TradingTotalWidget::class.java, TradingBusinessWidget::class.java))
+        val trading = runCatching { TradingRepo.refresh(context, tradingPeriods) }
         RefreshLog(context).add("trading", trading.fold({ it.name }, { "error: ${it.message}" }))
-        val board = runCatching { BoardRepo.refresh(context) }
+        val boardPeriods = periodsFor(context, listOf(BoardTodayWidget::class.java, FunnelWidget::class.java))
+        val board = runCatching { BoardRepo.refresh(context, boardPeriods) }
         RefreshLog(context).add("board", board.fold({ it.name }, { "error: ${it.message}" }))
         redraw(context)
     }

@@ -30,9 +30,16 @@ class TradingApi(private val http: OkHttpClient, private val base: String = Trad
         FetchResult.Error("unexpected response")
     }
 
-    /** Today, then yesterday. A refused or failed `today` wins; a failed `yesterday` just drops the comparison. */
-    fun snapshot(token: String): FetchResult<TradingSnapshot> =
-        when (val today = overview(token, "today")) {
+    /**
+     * One window. For today also yesterday, for the comparison: a refused or failed `today` wins; a failed
+     * `yesterday` just drops the comparison.
+     */
+    fun snapshot(token: String, preset: String = "today"): FetchResult<TradingSnapshot> =
+        if (preset != "today") when (val r = overview(token, preset)) {
+            is FetchResult.Ok -> FetchResult.Ok(TradingSnapshot(r.data, null))
+            FetchResult.Refused -> FetchResult.Refused
+            is FetchResult.Error -> r
+        } else when (val today = overview(token, "today")) {
             is FetchResult.Ok -> {
                 val y = overview(token, "yesterday")
                 if (y == FetchResult.Refused) FetchResult.Refused

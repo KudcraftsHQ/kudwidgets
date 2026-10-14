@@ -38,6 +38,16 @@
         </activity>
 
         <activity
+            android:name=".ConfigureActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".OpenActivity"
             android:excludeFromRecents="true"
             android:exported="false"

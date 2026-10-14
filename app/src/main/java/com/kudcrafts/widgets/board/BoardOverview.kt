@@ -2,6 +2,9 @@ package com.kudcrafts.widgets.board
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.kudcrafts.widgets.core.Jakarta
+import com.kudcrafts.widgets.core.Window
+import com.kudcrafts.widgets.store.Period
 
 // board's GET /api/board/overview?lite=1 (server/lib/overview.ts), as board-bar's Models.swift reads it.
 // A product on an older contract sends nulls, so nearly everything is optional.
@@ -99,22 +102,44 @@ data class BoardOverview(
 data class Funnel(val leads: Double, val selfies: Double, val created: Double, val paid: Double)
 
 object BoardMath {
-    fun funnel(o: BoardOverview): Funnel {
+    /** The products a widget covers: one when filtered (and present), else all. */
+    fun products(o: BoardOverview, filter: String? = null): List<Product> =
+        filter?.let { f -> o.products.filter { it.slug == f } }?.takeIf { it.isNotEmpty() } ?: o.products
+
+    /** The KPIs a widget shows: one product's, or the combined. */
+    fun kpis(o: BoardOverview, filter: String? = null): BoardKpis =
+        filter?.let { f -> o.products.firstOrNull { it.slug == f }?.kpis } ?: o.combined
+
+    fun funnel(o: BoardOverview, filter: String? = null): Funnel {
         var l = 0.0; var s = 0.0; var c = 0.0; var p = 0.0
-        for (row in o.products) for (pt in row.series.orEmpty()) {
+        for (row in products(o, filter)) for (pt in row.series.orEmpty()) {
             l += pt.leads ?: 0.0; s += pt.selfies ?: 0.0; c += pt.created ?: 0.0; p += pt.paid
         }
         return Funnel(l, s, c, p)
     }
 
     /** IDR revenue per hour 0..23 across products (board never sums currencies; USD stays out). */
-    fun hourlyRevenue(o: BoardOverview): DoubleArray {
+    fun hourlyRevenue(o: BoardOverview, filter: String? = null): DoubleArray {
         val out = DoubleArray(24)
-        for (row in o.products) for (pt in row.series.orEmpty()) {
+        for (row in products(o, filter)) for (pt in row.series.orEmpty()) {
             val h = pt.t.substringAfter('T', "").take(2).toIntOrNull() ?: continue
             if (h in 0..23) out[h] += pt.revenueIDR
         }
         return out
+    }
+
+    /**
+     * Revenue per chart slot and how many slots are finished (the slot in progress is partial and would read
+     * as a dip): hours for a single day, days for 7 days or the month.
+     */
+    fun revenueSlots(o: BoardOverview, period: Period, filter: String?, fetchedAt: Long): Pair<DoubleArray, Int> = when (period) {
+        Period.Today -> hourlyRevenue(o, filter) to Jakarta.hourOfDay(fetchedAt).toInt()
+        Period.Yesterday -> hourlyRevenue(o, filter) to 24
+        else -> {
+            val slots = Window.days(period, o.dates.from)
+            val daily = Window.daily(o.dates.from, slots, products(o, filter).flatMap { p -> p.series.orEmpty().map { it.t to it.revenueIDR } })
+            daily to (Window.dayIndex(o.dates.from, Jakarta.day(fetchedAt)) ?: slots).coerceIn(0, slots)
+        }
     }
 
     /** The OpenAI credit, if the collector reports one. */

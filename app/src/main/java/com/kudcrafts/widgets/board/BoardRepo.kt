@@ -8,6 +8,7 @@ import com.kudcrafts.widgets.core.after
 import com.kudcrafts.widgets.net.Http
 import com.kudcrafts.widgets.store.Accounts
 import com.kudcrafts.widgets.store.CacheStore
+import com.kudcrafts.widgets.store.Period
 import com.kudcrafts.widgets.store.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,14 +17,19 @@ import kotlinx.coroutines.withContext
 object BoardRepo {
     const val DASHBOARD = "https://board.kudcrafts.com/"
 
-    private fun cache(context: Context) = CacheStore(context, "board", BoardOverview.serializer())
+    private fun cache(context: Context, period: Period = Period.Today) =
+        CacheStore(context, if (period == Period.Today) "board" else "board-${period.preset}", BoardOverview.serializer())
 
-    suspend fun display(context: Context, now: Long = System.currentTimeMillis()): Display<BoardOverview> {
+    suspend fun display(context: Context, period: Period = Period.Today, now: Long = System.currentTimeMillis()): Display<BoardOverview> {
         val auth = Accounts(context).account(Source.Board).status(now)
-        return Display.resolve(auth, cache(context).read(), now)
+        return Display.resolve(auth, cache(context, period).read(), now)
     }
 
-    suspend fun refresh(context: Context, now: Long = System.currentTimeMillis()): AuthStatus = withContext(Dispatchers.IO) {
+    suspend fun refresh(
+        context: Context,
+        periods: Set<Period> = setOf(Period.Today),
+        now: Long = System.currentTimeMillis(),
+    ): AuthStatus = withContext(Dispatchers.IO) {
         val accounts = Accounts(context)
         val status = accounts.account(Source.Board).status(now)
         if (status != AuthStatus.SignedIn) return@withContext status
@@ -31,14 +37,18 @@ object BoardRepo {
             accounts.signOut(Source.Board)
             return@withContext AuthStatus.SignedOut
         }
-        val store = cache(context)
-        val result = BoardApi(Http.client).overview(token)
-        store.write(store.read().after(result, System.currentTimeMillis()))
-        if (result == FetchResult.Refused) {
-            accounts.markRefused(Source.Board)
-            AuthStatus.Refused
-        } else AuthStatus.SignedIn
+        val api = BoardApi(Http.client)
+        for (period in periods.sortedBy { it.ordinal }) {
+            val store = cache(context, period)
+            val result = api.overview(token, period.preset)
+            store.write(store.read().after(result, System.currentTimeMillis()))
+            if (result == FetchResult.Refused) {
+                accounts.markRefused(Source.Board)
+                return@withContext AuthStatus.Refused
+            }
+        }
+        AuthStatus.SignedIn
     }
 
-    fun clear(context: Context) = cache(context).clear()
+    fun clear(context: Context) = Period.entries.forEach { cache(context, it).clear() }
 }

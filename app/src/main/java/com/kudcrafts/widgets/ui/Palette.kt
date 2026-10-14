@@ -12,4 +12,6 @@ object Palette {
     val downText = Color(0xFFF0A58C)
     val downFill = Color(0xFFC8674B)
     val warnSurface = Color(0xFF1D1413)
+    /** The app's own background: his wallpaper's night purple, so widgets and cards sit on it as on the home screen. */
+    val appBackground = Color(0xFF231E26)
 }

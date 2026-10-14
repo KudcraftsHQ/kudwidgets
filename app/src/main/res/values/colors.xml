@@ -7,4 +7,5 @@
     <color name="kw_down_text">#FFF0A58C</color>
     <color name="kw_down_fill">#FFC8674B</color>
     <color name="kw_warn_surface">#FF1D1413</color>
+    <color name="kw_app_background">#FF231E26</color>
 </resources>
