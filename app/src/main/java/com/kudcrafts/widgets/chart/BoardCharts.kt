@@ -39,16 +39,15 @@ object BoardCharts {
     }
 
     /**
-     * Board · today: a faint area of IDR revenue per hour, midnight at the left edge, through the current hour.
-     * Faint on purpose: the number is the point, the shape is the mood of the day.
+     * Board · today: a faint area of IDR revenue per slot (hours of a day, or days of a window), the window's
+     * start at the left edge, through the last finished slot. Faint on purpose: the number is the point.
      */
-    fun hourlyArea(w: Int, h: Int, d: Float, hourly: DoubleArray, nowHour: Double, topPx: Float, quiet: List<RectF>, dimmed: Boolean): Bitmap {
+    fun revenueArea(w: Int, h: Int, d: Float, slots: DoubleArray, finished: Int, topPx: Float, quiet: List<RectF>, dimmed: Boolean): Bitmap {
         val bmp = canvas(w, h)
         val c = Canvas(bmp)
         clipCorners(c, w, h, d)
-        // Finished hours only: the hour in progress is partial and would read as a drop.
-        val finished = nowHour.coerceIn(0.0, 24.0).toInt()
-        val max = hourly.take(finished).maxOrNull() ?: 0.0
+        val n = slots.size.coerceAtLeast(1)
+        val max = slots.take(finished.coerceIn(0, n)).maxOrNull() ?: 0.0
         if (finished < 1 || max <= 0) return bmp
         val top = topPx
         val bottom = h - 4f * d
@@ -56,8 +55,8 @@ object BoardCharts {
         // A point mid-hour per finished hour, anchored at 0 on the left.
         val pts = buildList {
             add(0f to bottom)
-            for (hr in 0 until finished) {
-                add(((hr + 0.5) / 24.0 * w).toFloat() to (bottom - (hourly[hr] / max) * (bottom - top)).toFloat())
+            for (i in 0 until finished.coerceAtMost(n)) {
+                add(((i + 0.5) / n * w).toFloat() to (bottom - (slots[i] / max) * (bottom - top)).toFloat())
             }
         }
         val line = smoothNoMonotone(pts)

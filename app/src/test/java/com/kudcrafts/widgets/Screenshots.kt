@@ -173,4 +173,26 @@ class Screenshots {
         shoot("openai-not-updating", credit) { OpenAiContent(boardData(o = stale)) }
         shoot("openai-signin", credit) { OpenAiContent(Display.SignIn(AuthStatus.SignedOut)) }
     }
+
+    // ── options ──
+    @Test fun optionVariants() = runTest {
+        val opts = com.kudcrafts.widgets.store.WidgetOptions(filter = "atlas")
+        shoot("options-trading-total-business", total) { TradingTotalContent(data(), opts) }
+        val week = weekSnapshot()
+        shoot("options-trading-total-7days", total) {
+            TradingTotalContent(Display.Data(week, at, 0, false, null), com.kudcrafts.widgets.store.WidgetOptions(period = com.kudcrafts.widgets.store.Period.Week))
+        }
+        shoot("options-board-today-product", oneRow) { BoardTodayContent(boardData(), com.kudcrafts.widgets.store.WidgetOptions(filter = "atlas")) }
+    }
+
+    /** 7 days ending today (2026-10-14), one bucket per day. */
+    private fun weekSnapshot(): TradingSnapshot {
+        val days = (8..14).map { "2026-10-%02d".format(it) }
+        val per = listOf(4.1, 3.6, 4.4, 5.0, 3.9, 4.8, 2.1).map { it * 1_000_000 }
+        val series = days.zip(per).map { (d, r) -> Bucket(d, orders = r / 85_000, revenue = r) }
+        val total = per.sum()
+        val o = Overview("last7", Dates("2026-10-08", "2026-10-14"), "day", emptyList(),
+            Summary(kpis(total, 330.0, 5.1, total * 0.33), series))
+        return TradingSnapshot(o, null)
+    }
 }

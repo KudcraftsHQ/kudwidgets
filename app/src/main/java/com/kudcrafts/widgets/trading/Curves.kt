@@ -64,4 +64,20 @@ object Curves {
         if (base <= 0.0) return null
         return (todayRevenue / base - 1.0) * 100.0
     }
+
+    /**
+     * A multi-day window as a running curve on the same 0..24 axis the charts use: slot k of `slots` ends at
+     * 24·(k+1)/slots. Runs through `lastSlot` (today, partly done); the rest of the window stays empty.
+     */
+    fun windowRunning(daily: DoubleArray, lastSlot: Int): List<Pair<Double, Double>> {
+        val n = daily.size.coerceAtLeast(1)
+        val pts = ArrayList<Pair<Double, Double>>()
+        pts += 0.0 to 0.0
+        var sum = 0.0
+        for (k in 0..lastSlot.coerceIn(0, n - 1)) {
+            sum += daily[k]
+            pts += 24.0 * (k + 1) / n to sum
+        }
+        return pts
+    }
 }

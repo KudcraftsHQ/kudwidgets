@@ -37,7 +37,9 @@ import com.kudcrafts.widgets.chart.BoardCharts
 import com.kudcrafts.widgets.core.Display
 import com.kudcrafts.widgets.core.Format
 import com.kudcrafts.widgets.core.Jakarta
+import com.kudcrafts.widgets.store.OptionsStore
 import com.kudcrafts.widgets.store.Source
+import com.kudcrafts.widgets.store.WidgetOptions
 import com.kudcrafts.widgets.ui.Palette
 import com.kudcrafts.widgets.work.Refresher
 
@@ -62,24 +64,28 @@ private fun NonData(display: Display<*>, title: String, qualifier: String?, url:
 class BoardTodayWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val display = BoardRepo.display(context)
-        provideContent { BoardTodayContent(display) }
+        val options = OptionsStore(context).get(id)
+        val display = BoardRepo.display(context, options.period)
+        provideContent { BoardTodayContent(display, options) }
     }
 }
 
 @Composable
-fun BoardTodayContent(display: Display<BoardOverview>) {
-    if (display !is Display.Data) return NonData(display, "Board", "today", BoardRepo.DASHBOARD)
+fun BoardTodayContent(display: Display<BoardOverview>, options: WidgetOptions = WidgetOptions()) {
+    val tapUrl = options.tapUrl ?: BoardRepo.DASHBOARD
+    if (display !is Display.Data) return NonData(display, "Board", options.period.label, tapUrl)
     val context = LocalContext.current
     val size = LocalSize.current
     val o = display.data
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
-    val revenue = o.combined.revenue?.current?.IDR ?: 0.0
-    val contrib = o.combined.contribution?.current
+    val kpis = BoardMath.kpis(o, options.filter)
+    val revenue = kpis.revenue?.current?.IDR ?: 0.0
+    val contrib = kpis.contribution?.current
     val showContrib = contrib != null && size.width >= 220.dp
-    val products = BoardMath.productLine(o, Format::short)
-    val qualifier = if (size.width >= 300.dp && products.isNotEmpty()) "today · $products" else "today"
+    val product = options.filter?.let { f -> o.products.firstOrNull { it.slug == f } }
+    val products = if (product != null) product.name else BoardMath.productLine(o, Format::short)
+    val qualifier = if (size.width >= 300.dp && products.isNotEmpty()) "${options.period.label} · $products" else options.period.label
     val headline = Format.short(revenue)
     val big = if (size.height >= 76.dp) 30.sp else 24.sp
 
@@ -89,14 +95,15 @@ fun BoardTodayContent(display: Display<BoardOverview>) {
         if (showContrib) add(RectF(w - 16f - 70f, 26f, w, h))
     }
     val d = density(context)
-    val chart = BoardCharts.hourlyArea(
-        (w * d).toInt(), (h * d).toInt(), d, BoardMath.hourlyRevenue(o), Jakarta.hourOfDay(display.fetchedAt),
+    val (slots, finished) = BoardMath.revenueSlots(o, options.period, options.filter, display.fetchedAt)
+    val chart = BoardCharts.revenueArea(
+        (w * d).toInt(), (h * d).toInt(), d, slots, finished,
         // Below the header row: the qualifier's product numbers must stay on plain surface.
         topPx = 36f * d,
         quiet = quiet.map { RectF(it.left * d, it.top * d, it.right * d, it.bottom * d) }, dimmed = dim,
     )
 
-    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, BoardRepo.DASHBOARD))) {
+    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
         Image(ImageProvider(chart), null, GlanceModifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
             WidgetHeader("Board", qualifier, time, timeColor)
@@ -114,17 +121,20 @@ fun BoardTodayContent(display: Display<BoardOverview>) {
 class FunnelWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val display = BoardRepo.display(context)
-        provideContent { FunnelContent(display) }
+        val options = OptionsStore(context).get(id)
+        val display = BoardRepo.display(context, options.period)
+        provideContent { FunnelContent(display, options) }
     }
 }
 
 @Composable
-fun FunnelContent(display: Display<BoardOverview>) {
-    if (display !is Display.Data) return NonData(display, "Funnel", null, BoardRepo.DASHBOARD)
+fun FunnelContent(display: Display<BoardOverview>, options: WidgetOptions = WidgetOptions()) {
+    val tapUrl = options.tapUrl ?: BoardRepo.DASHBOARD
+    val qualifier = options.period.label.takeIf { options.period != com.kudcrafts.widgets.store.Period.Today }
+    if (display !is Display.Data) return NonData(display, "Funnel", qualifier, tapUrl)
     val context = LocalContext.current
     val size = LocalSize.current
-    val f = BoardMath.funnel(display.data)
+    val f = BoardMath.funnel(display.data, options.filter)
     val dim = display.stale
     val (time, timeColor) = headerTime(display)
     val steps = listOf("Leads" to f.leads, "Selfie" to f.selfies, "Created" to f.created, "Paid" to f.paid)
@@ -133,10 +143,10 @@ fun FunnelContent(display: Display<BoardOverview>) {
     val centers = steps.indices.map { (WidgetPadH.value + (it + 0.5f) * inner / steps.size) * d }
     val band = BoardCharts.funnelBand((size.width.value * d).toInt(), (size.height.value * d).toInt(), d, steps.map { it.second }, centers, dim)
 
-    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, BoardRepo.DASHBOARD))) {
+    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
         Image(ImageProvider(band), null, GlanceModifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
-            WidgetHeader("Funnel", null, time, timeColor)
+            WidgetHeader("Funnel", qualifier, time, timeColor)
             Spacer(GlanceModifier.defaultWeight())
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 steps.forEach { (label, v) ->
@@ -155,13 +165,14 @@ fun FunnelContent(display: Display<BoardOverview>) {
 class OpenAiWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val options = OptionsStore(context).get(id)
         val display = BoardRepo.display(context)
-        provideContent { OpenAiContent(display) }
+        provideContent { OpenAiContent(display, options) }
     }
 }
 
 @Composable
-fun OpenAiContent(display: Display<BoardOverview>) {
+fun OpenAiContent(display: Display<BoardOverview>, options: WidgetOptions = WidgetOptions()) {
     if (display !is Display.Data) return NonData(display, "OpenAI", null, BoardRepo.DASHBOARD)
     val context = LocalContext.current
     val size = LocalSize.current
@@ -180,7 +191,7 @@ fun OpenAiContent(display: Display<BoardOverview>) {
         (size.width.value * d).toInt(), (size.height.value * d).toInt(), d,
         b?.let(BoardMath::tankLevel) ?: 0.0, warning = warn, dimmed = false,
     )
-    val url = b?.topUpUrl ?: BoardRepo.DASHBOARD
+    val url = options.tapUrl ?: b?.topUpUrl ?: BoardRepo.DASHBOARD
     Box(
         GlanceModifier.fillMaxSize()
             .background(ImageProvider(if (warn) R.drawable.widget_surface_warn else R.drawable.widget_surface))
@@ -200,17 +211,14 @@ fun OpenAiContent(display: Display<BoardOverview>) {
     }
 }
 
-class BoardTodayReceiver : GlanceAppWidgetReceiver() {
+class BoardTodayReceiver : KudReceiver() {
     override val glanceAppWidget: GlanceAppWidget = BoardTodayWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Refresher.schedule(context); Refresher.now(context) }
 }
 
-class FunnelReceiver : GlanceAppWidgetReceiver() {
+class FunnelReceiver : KudReceiver() {
     override val glanceAppWidget: GlanceAppWidget = FunnelWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Refresher.schedule(context); Refresher.now(context) }
 }
 
-class OpenAiReceiver : GlanceAppWidgetReceiver() {
+class OpenAiReceiver : KudReceiver() {
     override val glanceAppWidget: GlanceAppWidget = OpenAiWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Refresher.schedule(context); Refresher.now(context) }
 }

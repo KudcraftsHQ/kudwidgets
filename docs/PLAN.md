@@ -125,7 +125,7 @@ Copy `kc-release.yaml` (as `.github/workflows/release.yaml`):
 | 1 | Skeleton, one placeholder widget, release workflow, secrets | `v0.0.1` release has a signed APK that installs |
 | 2 | Trading: OAuth (behind the contract), both Trading widgets, 15-min refresh, tap to open | Numbers match trading-bar |
 | 3 | Board: device sign-in, Board · today, Funnel, OpenAI credit | Numbers match board-bar |
-| 4 | Gallery app, per-widget options, all states, polish | Every state has a screenshot |
+| 4 | Gallery app, per-widget options, all states, polish | Every state has a screenshot (`docs/screenshots/`) |
 | later | Push nudge via ntfy Kudcrafts | not now |
 
 Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataStore, AndroidX Browser
@@ -170,6 +170,17 @@ Stack: Kotlin, Jetpack Glance, WorkManager, OkHttp, kotlinx.serialization, DataS
 - **Board · today's area** draws finished hours only (the hour in progress is partial and would read as a dip) and
   stays below the header row. Funnel and Board taps open board's home: board has no funnel URL of its own yet.
 - All whole-widget bitmaps clip to the 22dp corners themselves: not every launcher clips children to the outline.
+
+- **Gallery** renders each widget with the same Glance content the launcher gets (composed to RemoteViews and
+  inflated in the app, taps swallowed), at its home-screen size. Signed out, it shows each widget's "Sign in"
+  state. The app sits on the wallpaper's night purple (`#231E26`) so widgets and cards read as on the home screen.
+- **Per-widget options** (`ConfigureActivity`; on add below Android 12, otherwise optional, and on long-press ›
+  reconfigure): period (today / yesterday / 7 days / month) on Trading · total, Trading · by business, Board · today
+  and Funnel; business on Trading · total; product on Board · today and Funnel; tap URL (https only) on all.
+  OpenAI credit has only the tap URL. Each period has its own cache; a refresh reads only the periods placed widgets
+  use, plus today. Only today compares with yesterday. 7 days and month draw one slot per day across the whole
+  window (the month's later days stay empty); an unknown filter (a business or product that went away) falls back
+  to all, never to an empty widget.
 
 ## Rules for whoever builds this
 

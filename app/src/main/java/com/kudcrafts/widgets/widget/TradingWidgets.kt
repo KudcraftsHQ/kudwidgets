@@ -36,6 +36,10 @@ import com.kudcrafts.widgets.chart.RunningChart
 import com.kudcrafts.widgets.core.Display
 import com.kudcrafts.widgets.core.Format
 import com.kudcrafts.widgets.core.Jakarta
+import com.kudcrafts.widgets.core.Window
+import com.kudcrafts.widgets.store.OptionsStore
+import com.kudcrafts.widgets.store.Period
+import com.kudcrafts.widgets.store.WidgetOptions
 import com.kudcrafts.widgets.store.Source
 import com.kudcrafts.widgets.trading.Bucket
 import com.kudcrafts.widgets.trading.Curves
@@ -53,6 +57,7 @@ data class TradingFigure(
     val yesterday: List<Pair<Double, Double>>,
 ) {
     companion object {
+        /** Today: running to now, against yesterday. */
         fun of(kpis: Kpis, today: List<Bucket>, yesterday: List<Bucket>?, fetchedAt: Long): TradingFigure {
             val now = Jakarta.hourOfDay(fetchedAt)
             return TradingFigure(
@@ -62,6 +67,19 @@ data class TradingFigure(
                 yesterday = yesterday?.let { Curves.fullDay(Curves.hourly(it)) }.orEmpty(),
             )
         }
+
+        /** Any window: today compares with yesterday; yesterday is a whole day; 7 days / month run per day. */
+        fun of(kpis: Kpis, series: List<Bucket>, yesterday: List<Bucket>?, fetchedAt: Long, period: Period, from: String): TradingFigure =
+            when (period) {
+                Period.Today -> of(kpis, series, yesterday, fetchedAt)
+                Period.Yesterday -> TradingFigure(kpis, null, Curves.today(Curves.hourly(series), 24.0), emptyList())
+                else -> {
+                    val slots = Window.days(period, from)
+                    val daily = Window.daily(from, slots, series.map { it.t to it.revenue })
+                    val last = Window.dayIndex(from, Jakarta.day(fetchedAt)) ?: (slots - 1)
+                    TradingFigure(kpis, null, Curves.windowRunning(daily, last), emptyList())
+                }
+            }
     }
 }
 
@@ -122,30 +140,39 @@ class TradingTotalWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val display = TradingRepo.display(context)
-        provideContent { TradingTotalContent(display) }
+        val options = OptionsStore(context).get(id)
+        val display = TradingRepo.display(context, options.period)
+        provideContent { TradingTotalContent(display, options) }
     }
 }
 
 @Composable
-fun TradingTotalContent(display: Display<TradingSnapshot>) {
+fun TradingTotalContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
     val size = LocalSize.current
     val (time, timeColor) = headerTime(display)
+    val defaultUrl = options.filter?.let(TradingRepo::businessUrl) ?: TradingRepo.DASHBOARD
+    val tapUrl = options.tapUrl ?: defaultUrl
 
     if (display !is Display.Data) {
         Column(
             GlanceModifier.fillMaxSize().surface().padding(horizontal = WidgetPadH, vertical = WidgetPadV)
-                .clickable(nonDataAction(context, display, Source.Trading, TradingRepo.DASHBOARD)),
+                .clickable(nonDataAction(context, display, Source.Trading, tapUrl)),
         ) {
-            WidgetHeader("Trading", "today", time)
+            WidgetHeader("Trading", options.period.label, time)
             NonDataBody(context, display, Source.Trading, compact = size.height < 100.dp)
         }
         return
     }
 
     val snap = display.data
-    val figure = TradingFigure.of(snap.today.combined.kpis, snap.today.combined.series, snap.yesterday?.combined?.series, display.fetchedAt)
+    val business = options.filter?.let { slug -> snap.today.businesses.firstOrNull { it.slug == slug } }
+    val kpis = business?.kpis ?: snap.today.combined.kpis
+    val series = business?.series ?: snap.today.combined.series
+    val ySeries = if (business != null) snap.yesterday?.businesses?.firstOrNull { it.slug == business.slug }?.series
+    else snap.yesterday?.combined?.series
+    val figure = TradingFigure.of(kpis, series, ySeries, display.fetchedAt, options.period, snap.today.dates.from)
+    val qualifier = listOfNotNull(business?.name, options.period.label).joinToString(" · ")
     val dim = display.stale
     val showStats = size.height >= 112.dp && size.width >= 250.dp
     val showDelta = size.height >= 84.dp
@@ -159,7 +186,7 @@ fun TradingTotalContent(display: Display<TradingSnapshot>) {
         if (showStats) add(RectF(w - 16f - 186f, h - 12f - 44f, w - 6f, h - 4f))
     }
 
-    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, TradingRepo.DASHBOARD))) {
+    Box(GlanceModifier.fillMaxSize().surface().clickable(openAction(context, tapUrl))) {
         Image(
             provider = chartImage(context, size, figure, if (showStats) 0.34f else 0.42f, quiet, dim, clipCorners = true),
             contentDescription = null,
@@ -167,7 +194,7 @@ fun TradingTotalContent(display: Display<TradingSnapshot>) {
             modifier = GlanceModifier.fillMaxSize(),
         )
         Column(GlanceModifier.fillMaxSize().padding(horizontal = WidgetPadH, vertical = WidgetPadV)) {
-            WidgetHeader("Trading", "today", time, timeColor)
+            WidgetHeader("Trading", qualifier, time, timeColor)
             Text(headline, style = text(bigSize, if (dim) Palette.creamDim else Palette.cream), maxLines = 1)
             if (showDelta) DeltaLine(figure.delta, dim)
         }
@@ -185,23 +212,25 @@ class TradingBusinessWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val display = TradingRepo.display(context)
-        provideContent { TradingBusinessContent(display) }
+        val options = OptionsStore(context).get(id)
+        val display = TradingRepo.display(context, options.period)
+        provideContent { TradingBusinessContent(display, options) }
     }
 }
 
 @Composable
-fun TradingBusinessContent(display: Display<TradingSnapshot>) {
+fun TradingBusinessContent(display: Display<TradingSnapshot>, options: WidgetOptions = WidgetOptions()) {
     val context = LocalContext.current
     val size = LocalSize.current
     val (time, timeColor) = headerTime(display)
+    val headerUrl = options.tapUrl ?: TradingRepo.DASHBOARD
 
     if (display !is Display.Data) {
         Column(
             GlanceModifier.fillMaxSize().surface().padding(horizontal = WidgetPadH, vertical = WidgetPadV)
-                .clickable(nonDataAction(context, display, Source.Trading, TradingRepo.DASHBOARD)),
+                .clickable(nonDataAction(context, display, Source.Trading, headerUrl)),
         ) {
-            WidgetHeader("Trading", "today", time)
+            WidgetHeader("Trading", options.period.label, time)
             NonDataBody(context, display, Source.Trading, compact = size.height < 100.dp)
         }
         return
@@ -216,12 +245,12 @@ fun TradingBusinessContent(display: Display<TradingSnapshot>) {
 
     val headerH = 34.dp
     val bandH = if (shown.isEmpty()) 0.dp else (size.height - headerH - WidgetPadV) / shown.size
-    val qualifier = "today · total ${Format.short(snap.today.combined.kpis.revenue)}" + if (more > 0) " · +$more" else ""
+    val qualifier = "${options.period.label} · total ${Format.short(snap.today.combined.kpis.revenue)}" + if (more > 0) " · +$more" else ""
 
     Column(GlanceModifier.fillMaxSize().surface()) {
         Box(
             GlanceModifier.fillMaxWidth().height(headerH).padding(start = WidgetPadH, end = WidgetPadH, top = WidgetPadV)
-                .clickable(openAction(context, TradingRepo.DASHBOARD)),
+                .clickable(openAction(context, headerUrl)),
         ) {
             WidgetHeader("Trading", qualifier, time, timeColor)
         }
@@ -234,7 +263,7 @@ fun TradingBusinessContent(display: Display<TradingSnapshot>) {
                     Box(GlanceModifier.fillMaxWidth().height(1.dp).background(ColorProvider(Palette.cream.copy(alpha = 0.10f)))) {}
                 }
             }
-            val figure = TradingFigure.of(b.kpis, b.series, yesterdayBySlug[b.slug]?.series, display.fetchedAt)
+            val figure = TradingFigure.of(b.kpis, b.series, yesterdayBySlug[b.slug]?.series, display.fetchedAt, options.period, snap.today.dates.from)
             BusinessBand(context, DpSize(size.width, bandH - if (i > 0) 1.dp else 0.dp), b.name, b.slug, figure, dim)
         }
     }
@@ -288,12 +317,10 @@ private fun LetterChip(name: String) {
     }
 }
 
-class TradingTotalReceiver : GlanceAppWidgetReceiver() {
+class TradingTotalReceiver : KudReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TradingTotalWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Refresher.schedule(context); Refresher.now(context) }
 }
 
-class TradingBusinessReceiver : GlanceAppWidgetReceiver() {
+class TradingBusinessReceiver : KudReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TradingBusinessWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Refresher.schedule(context); Refresher.now(context) }
 }

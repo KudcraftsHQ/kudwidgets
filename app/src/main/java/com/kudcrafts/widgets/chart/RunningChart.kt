@@ -57,7 +57,10 @@ object RunningChart {
         val max = maxOf(spec.today.maxOfOrNull { it.second } ?: 0.0, spec.yesterday.maxOfOrNull { it.second } ?: 0.0)
         val top = h * spec.topFraction
         val bottom = h - spec.bottomInsetDp * d
-        fun x(hour: Double) = (hour / 24.0 * w).toFloat()
+        // When today runs to the window's end (7 days, month, a whole yesterday), stop short of the edge so the
+        // ring at "now" stays whole.
+        val span = if ((spec.today.lastOrNull()?.first ?: 0.0) >= 23.99) w - 7f * d else w.toFloat()
+        fun x(hour: Double) = (hour / 24.0 * span).toFloat()
         fun y(v: Double) = if (max <= 0) bottom else (bottom - (v / max) * (bottom - top)).toFloat()
 
         // Yesterday, dashed, whole day to the right edge.
