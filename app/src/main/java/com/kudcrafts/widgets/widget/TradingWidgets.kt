@@ -155,8 +155,11 @@ class TradingTotalWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
-        val display = TradingRepo.display(context, options.period)
-        provideContent { TradingTotalContent(display, options) }
+        val initial = options to TradingRepo.display(context, options.period)
+        provideContent {
+            val (o, display) = cached(initial) { OptionsStore(context).get(id).let { o -> o to TradingRepo.display(context, o.period) } }
+            TradingTotalContent(display, o)
+        }
     }
 }
 
@@ -228,8 +231,11 @@ class TradingBusinessWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
-        val display = TradingRepo.display(context, options.period)
-        provideContent { TradingBusinessContent(display, options) }
+        val initial = options to TradingRepo.display(context, options.period)
+        provideContent {
+            val (o, display) = cached(initial) { OptionsStore(context).get(id).let { o -> o to TradingRepo.display(context, o.period) } }
+            TradingBusinessContent(display, o)
+        }
     }
 }
 

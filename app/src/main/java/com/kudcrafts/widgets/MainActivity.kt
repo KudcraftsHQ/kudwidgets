@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import com.kudcrafts.widgets.core.AuthStatus
 import com.kudcrafts.widgets.core.Jakarta
 import com.kudcrafts.widgets.gallery.WidgetKind
 import com.kudcrafts.widgets.gallery.WidgetPreview
+import com.kudcrafts.widgets.live.Live
 import com.kudcrafts.widgets.store.Account
 import com.kudcrafts.widgets.store.Accounts
 import com.kudcrafts.widgets.store.RefreshLog
@@ -68,6 +70,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         handle(intent)
         Refresher.now(this)
+        Live.ensure(this)
+        // The live notification is the service's face; without the permission it runs hidden.
+        if (Live.enabled(this) && !Live.canNotify(this) && android.os.Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
         // Redraw the gallery whenever a refresh finishes.
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("refresh-now").observe(this) { infos ->
             if (infos.any { it.state == WorkInfo.State.SUCCEEDED }) version++
@@ -92,6 +99,7 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 message = TradingSignIn.finish(this@MainActivity, data!!) ?: "Signed in to kudtrading."
                 Refresher.now(this@MainActivity)
+                Live.ensure(this@MainActivity)
                 Refresher.redraw(this@MainActivity)
                 version++
             }
@@ -120,6 +128,7 @@ class MainActivity : ComponentActivity() {
             boardCode = null
             message = error ?: "Signed in to board."
             Refresher.now(this@MainActivity)
+            Live.ensure(this@MainActivity)
             Refresher.redraw(this@MainActivity)
             version++
         }
@@ -161,6 +170,7 @@ class MainActivity : ComponentActivity() {
             AppUi.Section("Sources")
             SourceCard(Source.Trading, trading)
             SourceCard(Source.Board, board)
+            LiveCard(v)
 
             AppUi.Section("Last refreshes")
             if (log.isEmpty()) AppUi.Dim("Nothing yet.")
@@ -202,6 +212,7 @@ class MainActivity : ComponentActivity() {
                             val revoked = if (source == Source.Trading) TradingSignIn.signOut(this@MainActivity)
                             else BoardSignIn.signOut(this@MainActivity)
                             Refresher.redraw(this@MainActivity)
+                            Live.ensure(this@MainActivity)
                             message = if (revoked) "Signed out of ${source.label} and revoked the key."
                             else "Signed out here, but ${source.label} didn't confirm the revoke. Check it there."
                             version++
@@ -215,6 +226,54 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Live updates: on or off, how the streams are doing, and the two system settings it needs to stay up. */
+    @Composable
+    private fun LiveCard(v: Int) {
+        val live by Live.state.collectAsState()
+        val enabled = v.let { Live.enabled(this) }
+        val canNotify = v.let { Live.canNotify(this) }
+        val unrestricted = v.let { Live.unrestricted(this) }
+        Column(
+            Modifier.fillMaxWidth().background(AppUi.card, RoundedCornerShape(18.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            AppUi.Title("Live updates")
+            val active = live.links.values.count { it != Live.Link.Refused }
+            val line = when {
+                !enabled -> "Off · widgets refresh every 15 minutes"
+                !live.running -> "Starting…"
+                !live.online -> "Offline · waiting for network"
+                live.links.isEmpty() -> "Sign in to a source first"
+                live.liveCount == active -> "Connected to ${live.liveCount} stream${if (live.liveCount == 1) "" else "s"} · widgets update as numbers move"
+                else -> "Connected to ${live.liveCount} of $active streams · reconnecting"
+            }
+            AppUi.Body(line, Palette.creamDim)
+            live.lastEventAt?.let { AppUi.Dim("Last change pushed ${Jakarta.clock(it)}") }
+            if (enabled && !unrestricted) AppUi.Dim("Battery optimisation can cut the connection while the phone sleeps.")
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppUi.Button(if (enabled) "Turn off" else "Turn on") {
+                    Live.setEnabled(this@MainActivity, !enabled)
+                    version++
+                }
+                if (enabled && !unrestricted) AppUi.Button("Keep alive") {
+                    startActivity(
+                        Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            .setData(android.net.Uri.parse("package:$packageName")),
+                    )
+                }
+                if (enabled && !canNotify && android.os.Build.VERSION.SDK_INT >= 33) AppUi.Button("Show notification") {
+                    requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+                }
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        version++
     }
 
     private fun pin(kind: WidgetKind) {

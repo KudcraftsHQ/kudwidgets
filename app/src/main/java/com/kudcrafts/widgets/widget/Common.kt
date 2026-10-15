@@ -3,6 +3,9 @@ package com.kudcrafts.widgets.widget
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -35,6 +38,7 @@ import com.kudcrafts.widgets.core.Format
 import com.kudcrafts.widgets.core.Jakarta
 import com.kudcrafts.widgets.store.Source
 import com.kudcrafts.widgets.ui.Palette
+import com.kudcrafts.widgets.work.Refresher
 
 /** The widget surface: opaque night, 22dp corners (a drawable below API 31, where cornerRadius is a no-op). */
 fun GlanceModifier.surface(): GlanceModifier =
@@ -130,3 +134,15 @@ fun textWidthDp(text: String, sp: Float): Float = text.length * sp * 0.62f
 /** Width of the Orders · ROAS · Contrib block, in dp. */
 fun statsWidthDp(values: List<String>, valueSp: Float, gapDp: Float): Float =
     values.sumOf { v -> maxOf(textWidthDp(v, valueSp), 44f).toDouble() }.toFloat() + gapDp * (values.size - 1)
+
+/**
+ * `initial`, re-read with `load` on every [Refresher.redraw]. A widget's Glance session stays up for a while after
+ * it draws, and an update() that lands meanwhile only recomposes it: anything read once in provideGlance would be
+ * drawn again unchanged, which live refreshes seconds apart hit all the time.
+ */
+@Composable
+fun <T> cached(initial: T, load: suspend () -> T): T {
+    val version by Refresher.version.collectAsState()
+    val value by produceState(initial, version) { value = load() }
+    return value
+}

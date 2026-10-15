@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import com.kudcrafts.widgets.live.Live
 import com.kudcrafts.widgets.work.Refresher
 
 /** A widget tap: refresh in the background, open the dashboard, leave no screen behind. */
@@ -13,6 +14,8 @@ class OpenActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Refresher.now(this)
+        // A tap is foreground: the moment to bring live updates back if the system stopped them.
+        Live.ensure(this)
         intent.getStringExtra(EXTRA_URL)?.let { url ->
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

@@ -14,8 +14,12 @@ This file is the contract between the threads building it. Keep it current; reco
 - Look follows his home screen: kudmascot night theme (see Design). No green highlight pills anywhere.
 - Trading ships as **two widgets**: merged total, and split per business.
 - **Sign-in is OAuth for both sources.** No pasted keys, ever.
-- Refresh every 15 minutes (WorkManager) plus refresh on tap / app open. The push nudge through
-  ntfy Kudcrafts is a later phase, not now.
+- Refresh every 15 minutes (WorkManager) plus refresh on tap / app open, plus **live updates**: a foreground
+  service (`live/LiveService.kt`, type `specialUse`) holds the sources' event streams open — kudtrading
+  `/api/webhooks/stream` and `/api/ads/stream`, board `/api/p/<product>/admin/events` — and refreshes a source
+  within seconds of an event that moves its numbers (at most one refresh per source per 20s). Its ongoing
+  notification shows today's numbers (hidden on the lock screen). On by default, switchable in the app; needs the
+  battery-optimisation exemption to survive Doze. (Chosen over the ntfy push nudge on 2026-10-15.)
 
 ## Sources to read first
 
