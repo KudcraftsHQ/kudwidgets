@@ -65,8 +65,11 @@ class BoardTodayWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
-        val display = BoardRepo.display(context, options.period)
-        provideContent { BoardTodayContent(display, options) }
+        val initial = options to BoardRepo.display(context, options.period)
+        provideContent {
+            val (o, display) = cached(initial) { OptionsStore(context).get(id).let { o -> o to BoardRepo.display(context, o.period) } }
+            BoardTodayContent(display, o)
+        }
     }
 }
 
@@ -121,8 +124,11 @@ class FunnelWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
-        val display = BoardRepo.display(context, options.period)
-        provideContent { FunnelContent(display, options) }
+        val initial = options to BoardRepo.display(context, options.period)
+        provideContent {
+            val (o, display) = cached(initial) { OptionsStore(context).get(id).let { o -> o to BoardRepo.display(context, o.period) } }
+            FunnelContent(display, o)
+        }
     }
 }
 
@@ -166,8 +172,11 @@ class OpenAiWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val options = OptionsStore(context).get(id)
-        val display = BoardRepo.display(context)
-        provideContent { OpenAiContent(display, options) }
+        val initial = options to BoardRepo.display(context)
+        provideContent {
+            val (o, display) = cached(initial) { OptionsStore(context).get(id).let { o -> o to BoardRepo.display(context) } }
+            OpenAiContent(display, o)
+        }
     }
 }
 

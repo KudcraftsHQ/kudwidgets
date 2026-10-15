@@ -4,6 +4,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Live updates: a foreground service holding the sources' event streams open (live/LiveService.kt). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Sideloaded through Obtainium, not Play: asking to be left out of Doze is how the stream survives the night. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Custom Tabs: find a browser that supports them (Android 11+ package visibility). -->
     <queries>
         <intent>
@@ -112,6 +121,25 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/openai_info" />
+        </receiver>
+
+        <!-- specialUse: a persistent connection for live data fits no other type, and dataSync is capped at 6h a day. -->
+        <service
+            android:name=".live.LiveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Holds server-sent event streams open so home-screen widgets update when the data changes" />
+        </service>
+
+        <receiver
+            android:name=".live.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
     </application>
 </manifest>

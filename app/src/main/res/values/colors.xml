@@ -8,4 +8,7 @@
     <color name="kw_down_fill">#FFC8674B</color>
     <color name="kw_warn_surface">#FF1D1413</color>
     <color name="kw_app_background">#FF231E26</color>
+    <!-- The live notification sits on the system shade, light or dark: these read on both. -->
+    <color name="kw_live">#FFD9805C</color>
+    <color name="kw_up_on_any">#FF2F9E66</color>
 </resources>
