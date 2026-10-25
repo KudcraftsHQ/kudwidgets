@@ -58,7 +58,7 @@ object Sse {
         url: String,
         token: String,
         onCall: (okhttp3.Call) -> Unit,
-        onOpen: () -> Unit,
+        onOpen: (String) -> Unit,
         onEvent: (SseEvent) -> Unit,
     ): StreamEnd {
         val call = client.newCall(
@@ -72,15 +72,15 @@ object Sse {
         return try {
             call.execute().use { res ->
                 if (res.code == 401 || res.code == 403) return StreamEnd.Refused
-                if (!res.isSuccessful) return StreamEnd.Closed("HTTP ${res.code}")
-                onOpen()
+                if (!res.isSuccessful) return StreamEnd.Closed("HTTP ${res.code} ${res.body?.string()?.take(160)?.replace('\n', ' ').orEmpty()}")
+                onOpen("HTTP ${res.code} ${res.protocol}")
                 val parser = SseParser(onEvent)
                 val source = res.body!!.source()
                 while (true) parser.line(source.readUtf8Line() ?: break)
                 StreamEnd.Closed("ended")
             }
         } catch (e: IOException) {
-            StreamEnd.Closed(e.message ?: "network error")
+            StreamEnd.Closed("${e.javaClass.simpleName}: ${e.message ?: "network error"}")
         }
     }
 }
