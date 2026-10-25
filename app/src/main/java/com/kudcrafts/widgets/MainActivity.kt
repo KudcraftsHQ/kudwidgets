@@ -25,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import com.kudcrafts.widgets.core.Jakarta
 import com.kudcrafts.widgets.gallery.WidgetKind
 import com.kudcrafts.widgets.gallery.WidgetPreview
 import com.kudcrafts.widgets.live.Live
+import com.kudcrafts.widgets.live.StreamLog
 import com.kudcrafts.widgets.store.Account
 import com.kudcrafts.widgets.store.Accounts
 import com.kudcrafts.widgets.store.RefreshLog
@@ -251,6 +253,11 @@ class MainActivity : ComponentActivity() {
             }
             AppUi.Body(line, Palette.creamDim)
             live.lastEventAt?.let { AppUi.Dim("Last change pushed ${Jakarta.clock(it)}") }
+            // Which stream is which: the count alone can't say which source is failing.
+            live.links.forEach { (stream, link) ->
+                AppUi.Dim("${stream.source.name.lowercase()} · ${stream.name}: ${link.name.lowercase()}")
+            }
+            StreamLogView()
             if (enabled && !unrestricted) AppUi.Dim("Battery optimisation can cut the connection while the phone sleeps.")
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -269,6 +276,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** The live streams' recent history, newest first, with Copy so it can be pasted into a bug report. */
+    @Composable
+    private fun StreamLogView() {
+        StreamLog.init(this)
+        val lines by StreamLog.lines.collectAsState()
+        var open by remember { mutableStateOf(false) }
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AppUi.Button(if (open) "Hide log" else "Stream log (${lines.size})") { open = !open }
+            if (open) AppUi.Button("Copy") {
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Kud Widgets stream log", StreamLog.text()))
+                message = "Stream log copied"
+            }
+            if (open) AppUi.Button("Clear") { StreamLog.clear() }
+        }
+        if (open) lines.takeLast(40).asReversed().forEach { AppUi.Dim(it) }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {

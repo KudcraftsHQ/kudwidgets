@@ -78,6 +78,7 @@ class LiveService : Service() {
             network = n
             Live.update { it.copy(online = true) }
             // A new network strands sockets on the old one: reconnect now rather than at the next read timeout.
+            StreamLog.add(null, if (changed) "network changed · reconnecting all" else "network available")
             if (changed) calls.values.forEach { it.cancel() }
             wake.value++
         }
@@ -85,6 +86,7 @@ class LiveService : Service() {
         override fun onLost(n: Network) {
             if (n != network) return
             network = null
+            StreamLog.add(null, "network lost")
             Live.update { it.copy(online = false) }
         }
     }
@@ -93,6 +95,8 @@ class LiveService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        StreamLog.init(this)
+        StreamLog.add(null, "service started")
         val cm = getSystemService(ConnectivityManager::class.java)
         network = cm.activeNetwork
         Live.update { Live.State(running = true, online = network != null) }
@@ -125,6 +129,7 @@ class LiveService : Service() {
     }
 
     override fun onDestroy() {
+        StreamLog.add(null, "service stopped")
         scope.cancel()
         calls.values.forEach { it.cancel() }
         runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(netCallback) }
@@ -167,6 +172,13 @@ class LiveService : Service() {
         return true
     }
 
+    private fun secs(ms: Long) = if (ms < 10_000) "%.1fs".format(ms / 1000.0) else "${ms / 1000}s"
+
+    private fun describe(end: StreamEnd) = when (end) {
+        StreamEnd.Refused -> "refused (401/403)"
+        is StreamEnd.Closed -> end.reason
+    }
+
     private fun link(stream: Stream, l: Live.Link) = Live.update {
         if (stream in it.links) it.copy(links = it.links + (stream to l)) else it
     }
@@ -177,17 +189,29 @@ class LiveService : Service() {
         while (isActive) {
             Live.state.first { it.online }
             link(stream, Live.Link.Connecting)
+            StreamLog.add(stream, "connecting")
+            val startedAt = System.currentTimeMillis()
             var openedAt = 0L
+            var pings = 0
+            var events = 0
             val end = Sse.read(
                 stream.url, token,
                 onCall = { calls[stream] = it },
-                onOpen = {
+                onOpen = { how ->
                     openedAt = System.currentTimeMillis()
+                    StreamLog.add(stream, "open · $how · headers after ${secs(openedAt - startedAt)}")
                     link(stream, Live.Link.Live)
                     if (downSince != null && openedAt - downSince!! >= MISSED_AFTER_MS) trigger(stream.source, "back online")
                     downSince = null
                 },
                 onEvent = { e ->
+                    val name = e.event ?: Regex("\"type\"\\s*:\\s*\"([^\"]+)\"").find(e.data)?.groupValues?.get(1) ?: "message"
+                    if (name == "ping") {
+                        if (pings++ == 0) StreamLog.add(stream, "first ping after ${secs(System.currentTimeMillis() - startedAt)}")
+                    } else {
+                        events++
+                        StreamLog.add(stream, "event $name")
+                    }
                     if (Streams.moves(stream.source, e)) {
                         Live.update { it.copy(lastEventAt = System.currentTimeMillis()) }
                         trigger(stream.source, "live")
@@ -195,6 +219,8 @@ class LiveService : Service() {
                 },
             )
             calls.remove(stream)
+            val up = if (openedAt > 0) "up ${secs(System.currentTimeMillis() - openedAt)}" else "never opened, ${secs(System.currentTimeMillis() - startedAt)}"
+            StreamLog.add(stream, "ended · ${describe(end)} · $up · $events events, $pings pings" + if (!isActive) " (stopped)" else "")
             if (!isActive) break
             if (end == StreamEnd.Refused) {
                 link(stream, Live.Link.Refused)
@@ -205,6 +231,7 @@ class LiveService : Service() {
             if (downSince == null) downSince = now
             // A stream that stayed up a while and then dropped (a deploy, a read timeout) retries right away.
             if (openedAt > 0 && now - openedAt > BACKOFF_MAX_MS) backoff = BACKOFF_MIN_MS
+            StreamLog.add(stream, "retry in ~${secs(backoff)}")
             val seen = wake.value
             withTimeoutOrNull(backoff + Random.nextLong(backoff / 4 + 1)) { wake.first { it != seen } }
             backoff = (backoff * 2).coerceAtMost(BACKOFF_MAX_MS)
