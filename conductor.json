@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "setup": "bash \"$CONDUCTOR_ROOT_PATH/scripts/conductor-setup.sh\"",
+    "run": "bash scripts/conductor-run.sh",
+    "archive": "rm -rf local.properties .gradle .kotlin build app/build; true"
+  },
+  "ports": {
+    "default": 1,
+    "labels": [
+      "unused"
+    ]
+  }
+}
